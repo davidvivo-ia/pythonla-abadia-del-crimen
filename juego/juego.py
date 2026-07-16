@@ -80,6 +80,7 @@ class Juego:
         self.codex = Codex()
         self.particulas = Particulas()
         self.shake = 0.0
+        self.mostrar_codex = False
 
     def mensaje(self, txt, dur=4.0) -> None:
         self.mensajes.append([txt, dur])
@@ -268,12 +269,13 @@ class Juego:
             con_luz = True
         if con_luz:
             self.cnt_oscuras = 0.0
-            if self.objetos["lampara"].portador == "adso":
-                self.aceite -= dt * 2.0
-                if 39 < self.aceite < 41:
-                    self.mensaje(f"Adso: «{frases.frase(0x28)}»", 4)
-                if self.aceite <= 0:
-                    self.mensaje(f"Adso: «{frases.frase(0x2A)}»", 4)
+            if self.objetos["lampara"].portador == "adso" and self.aceite > 0:
+                antes = self.aceite
+                self.aceite = max(0.0, self.aceite - dt * 2.0)
+                if antes > 40 >= self.aceite:
+                    self.mensaje(f"Adso: «{frases.frase(0x28)}»", 4)   # la lámpara se agota
+                if self.aceite == 0:
+                    self.mensaje(f"Adso: «{frases.frase(0x2A)}»", 4)   # se ha agotado
         else:
             self.cnt_oscuras += dt
             if 1.0 < self.cnt_oscuras < 1.2:
@@ -329,7 +331,7 @@ class Juego:
             self.adso.x, self.adso.y = gx + 0.5, gy + 1.5
             self.cam_x, self.cam_y = foco_camara(g.x, g.y)
             self.cd_escalera = COOLDOWN_ESCALERA
-            self.mensaje(f"Subes a: {C.NOMBRE_PLANTA[planta]}.", 3)
+            self.mensaje(f"Entras en: {C.NOMBRE_PLANTA[planta]}.", 3)
             return
         # 2) Espejo (clímax)
         if g.planta == C.PLANTA_BIBLIOTECA:
@@ -428,9 +430,12 @@ class Juego:
             elif self.estado == GAMEOVER:
                 self._overlay_final("FIN", self.mensaje_final, C.ROJO)
             elif self.estado == VICTORIA:
-                self._overlay_final("MISTERIO RESUELTO",
-                                    "Has desenmascarado a Jorge de Burgos y el libro envenenado.",
-                                    C.ORO)
+                self._overlay_final(
+                    "MISTERIO RESUELTO",
+                    "Adso te delató a tiempo: llevabas guantes y el veneno de las "
+                    "páginas no llegó a tus labios. Jorge de Burgos, acorralado, "
+                    "devoró el libro envenenado. Has resuelto el crimen de la abadía.",
+                    C.ORO)
             if self.mostrar_codex and self.estado == JUGANDO:
                 self._overlay_codex()
 

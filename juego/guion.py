@@ -37,10 +37,13 @@ def _anuncio(j, quien, idx) -> None:
 
 # --------------------------------------------------------------------------- #
 def _prima(j, dia, O, M) -> None:
-    # La lámpara se repone a partir del día 3 (en la cocina).
-    if dia >= 3 and O["lampara"].oculto and O["lampara"].portador is None:
-        cocina = j.mapa.planta(C.PLANTA_BAJA).anclas["cocina"]
-        O["lampara"].colocar(C.PLANTA_BAJA, *cocina)
+    # Al amanecer se repone el aceite de la lámpara (como resetLamp del original),
+    # evitando quedar atrapado en la oscuridad de la biblioteca.
+    if dia >= 3:
+        j.aceite = 100.0
+        if O["lampara"].oculto and O["lampara"].portador is None:
+            cocina = j.mapa.planta(C.PLANTA_BAJA).anclas["cocina"]
+            O["lampara"].colocar(C.PLANTA_BAJA, *cocina)
 
     if dia == 1:
         _anuncio(j, "El Abad", 0x15)          # Venancio asesinado

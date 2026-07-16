@@ -382,6 +382,36 @@ Ideas para seguir "vitaminando" el proyecto:
 
 ---
 
+## 11-bis. Capa de presentación "next-gen" (v3.0)
+
+Sobre el motor base se añade una capa de presentación moderna, toda en pygame
+puro (sin shaders ni dependencias nuevas; `numpy` sólo para el audio):
+
+- **Pipeline de post-procesado** (`efectos.PostFX`): el mundo se dibuja en un
+  **lienzo** intermedio y se le aplica **bloom** (resplandor: umbralizado +
+  desenfoque por reescalado en 1/5 de resolución, sumado en aditivo),
+  **viñeta** (degradado radial precomputado) y **grano** fílmico (tiles de ruido
+  precomputados). Todo cacheado para ir sobrado de 60 FPS.
+- **Iluminación dinámica** (`_iluminacion`): antorchas cálidas por estancia con
+  **parpadeo** (halos aditivos con brillo prehorneado en 6 niveles y cacheados),
+  velas del altar, y la **lámpara** de Adso que abre un cono de luz en la
+  biblioteca a oscuras. La oscuridad se "perfora" con máscaras radiales cacheadas.
+- **Sistema de partículas** (`efectos.Particulas`): motas de polvo en suspensión,
+  **llamas** en cada luz, **chispas** al recoger objetos y polvo de pisadas,
+  proyectadas en el mundo isométrico.
+- **Sacudida de cámara** en campanas, penalizaciones y muertes.
+- **Transiciones** con fundido entre estados y **HUD glassmorphism** (paneles de
+  cristal con borde de neón), **ticker de objetivo** y **códice de detective**
+  (`codex.Codex`, tecla `J`) que registra las pistas descubiertas.
+- **Toggle de rendimiento**: `F` activa/desactiva el post-procesado.
+
+El truco de integración clave: los *helpers* de dibujo siguen escribiendo en
+`self.pantalla`, pero durante el render del mundo esa referencia se intercambia
+temporalmente por el lienzo intermedio; así se añadió todo el pipeline sin tocar
+el código de dibujo isométrico existente.
+
+---
+
 ## 12. Créditos y fuentes
 
 - **Original (1987):** Paco Menéndez (programación), Juan Delcán (gráficos),

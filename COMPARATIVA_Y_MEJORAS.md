@@ -63,3 +63,19 @@ mejora aplicado para maximizar la fidelidad al juego de 1987.
 > los datos binarios de la ROM (`abadia*.bin`), no en código. Aquí se reconstruye
 > una planta fiel *en espíritu* (estancias, conexiones, laberinto y escaleras)
 > sin copiar esos binarios propiedad de Opera Soft.
+
+## Versión 3.0 — capa de presentación "next-gen" 2026
+
+Sobre la base fiel v2.0 se añadió una capa de presentación moderna (ver detalle
+técnico en `ABADIA_DISENO.md`, sección 11-bis):
+
+- Post-procesado **bloom + viñeta + grano** fílmico (módulo `efectos.py`).
+- **Iluminación dinámica**: antorchas cálidas parpadeantes por estancia, velas y
+  la lámpara de aceite, con oscuridad perforada por máscaras de luz.
+- **Partículas**: polvo en suspensión, llamas, chispas al recoger objetos y
+  polvo de pisadas.
+- **Sacudida de cámara** y **transiciones** con fundido entre estados.
+- **HUD glassmorphism** con **ticker de objetivo** y **códice de detective**
+  (`codex.py`, tecla `J`) que registra las pistas.
+- Todo en pygame puro y cacheado: se mantiene por encima de 60 FPS, con un
+  interruptor (`F`) para desactivar el post-procesado en equipos modestos.

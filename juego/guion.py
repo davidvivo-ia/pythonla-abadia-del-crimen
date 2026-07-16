@@ -30,7 +30,9 @@ def ejecutar(j) -> None:
 
 
 def _anuncio(j, quien, idx) -> None:
-    j.mensaje(f"{quien}: «{frases.frase(idx)}»", 6)
+    texto = frases.frase(idx)
+    j.mensaje(f"{quien}: «{texto}»", 6)
+    j.pista(f"{quien}: {texto}")
 
 
 # --------------------------------------------------------------------------- #

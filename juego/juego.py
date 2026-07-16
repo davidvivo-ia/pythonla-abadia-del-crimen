@@ -11,6 +11,8 @@ import pygame
 from . import config as C
 from . import frases, guion
 from .audio import Audio
+from .codex import Codex
+from .efectos import Particulas, PostFX
 from .hud import HUD
 from .iso import foco_camara, mundo_a_pantalla, profundidad
 from .mapa import Mapa
@@ -27,13 +29,24 @@ COOLDOWN_ESCALERA = 0.5
 class Juego:
     def __init__(self, pantalla) -> None:
         self.pantalla = pantalla
+        self.lienzo = pygame.Surface((C.ANCHO, C.ALTO)).convert()
         self.reloj_fps = pygame.time.Clock()
         self.hud = HUD()
         self.audio = Audio()
+        self.fx = PostFX(C.ANCHO, C.ALTO)
+        self.particulas = Particulas()
         self.rng = random.Random(1327)
         self.estado = MENU
         self.opcion_menu = 0
         self.ejecutando = True
+        self.fx_on = True
+        self.mostrar_codex = False
+        self.shake = 0.0
+        self.fade = 0.0
+        self._estado_prev = MENU
+        self._dt = 0.016
+        self._glow_cache: dict = {}
+        self._mask_cache: dict = {}
         self._nuevo_mundo()
 
     # ------------------------------------------------------------------ #
@@ -64,11 +77,21 @@ class Juego:
         self.aceite = 100.0
         self.mensaje_final = ""
         self.clima_resuelto = False
+        self.codex = Codex()
+        self.particulas = Particulas()
+        self.shake = 0.0
 
     def mensaje(self, txt, dur=4.0) -> None:
         self.mensajes.append([txt, dur])
         if len(self.mensajes) > 4:
             self.mensajes.pop(0)
+
+    def pista(self, texto) -> None:
+        """Registra una pista en el códice con su sello temporal."""
+        self.codex.anotar(f"D{self.reloj.dia}·{self.reloj.nombre}", texto)
+
+    def sacudir(self, fuerza=6.0) -> None:
+        self.shake = max(self.shake, fuerza)
 
     @property
     def planta_actual(self):
@@ -78,6 +101,7 @@ class Juego:
     def correr(self) -> None:
         while self.ejecutando:
             dt = min(self.reloj_fps.tick(C.FPS) / 1000.0, 0.05)
+            self._dt = dt
             self._eventos()
             if self.estado == JUGANDO:
                 self._actualizar(dt)
@@ -99,10 +123,19 @@ class Juego:
             self.mensaje(f"El Abad: «{frases.frase(0x01)}»", 6)
             self.mensaje(f"El Abad: «{frases.frase(0x02)}»", 7)
         elif self.estado == JUGANDO:
+            if self.mostrar_codex and key not in (pygame.K_j, pygame.K_ESCAPE):
+                return
             if key in (pygame.K_ESCAPE, pygame.K_p):
-                self.estado = PAUSA
+                if self.mostrar_codex:
+                    self.mostrar_codex = False
+                else:
+                    self.estado = PAUSA
             elif key == pygame.K_e:
                 self._interactuar()
+            elif key == pygame.K_j:
+                self.mostrar_codex = not self.mostrar_codex
+            elif key == pygame.K_f:
+                self.fx_on = not self.fx_on
             elif key == pygame.K_F5:
                 self.guardar()
         elif self.estado == PAUSA:
@@ -167,9 +200,11 @@ class Juego:
             m.actualizar(self.mapa, self.reloj, dt, self.rng)
 
         self.cd_escalera = max(0.0, self.cd_escalera - dt)
+        self.shake = max(0.0, self.shake - dt * 22.0)
         self._camara(dt)
         self._recoger_objetos()
         self._oscuridad_biblioteca(dt)
+        self.particulas.actualizar(dt, self)
 
         prev_m = self.reloj.momento
         if self.reloj.actualizar(dt):
@@ -210,9 +245,12 @@ class Juego:
             if math.hypot(g.x - (obj.gx + 0.5), g.y - (obj.gy + 0.5)) < 0.85:
                 obj.portador = "adso" if obj.clave in ("lampara", "llave3") else "guillermo"
                 self.mensaje(f"Recoges: {obj.nombre}.", 4)
+                self.pista(f"Objeto hallado: {obj.nombre}.")
+                self.particulas.emitir(obj.gx + 0.5, obj.gy + 0.5, "chispa", 14, z=8)
                 self._bonus_objeto(obj.clave)
                 if obj.clave == "gafas" and self.tiene("pergamino"):
                     self.mensaje(f"El pergamino revela: «{self._enigma()}»", 7)
+                    self.pista(f"Enigma del espejo: {self._enigma()}")
 
     def _bonus_objeto(self, clave) -> None:
         if clave in ("guantes", "llave1", "llave2", "llave3"):
@@ -262,6 +300,7 @@ class Juego:
     def _decrementa_obsequium(self, idx_frase) -> None:
         self.obsequium -= C.OBSEQUIUM_PENALIZACION
         self.mensaje(f"El Abad: «{frases.frase(idx_frase)}»  (−2 obsequium)", 5)
+        self.sacudir(5.0)
         if self.obsequium < 0:
             self.obsequium = 0
             self._fin(f"El Abad: «{frases.frase(0x0E)}»")
@@ -269,6 +308,7 @@ class Juego:
     def _campanas(self) -> None:
         r = self.reloj
         self.audio.tocar_campana()
+        self.sacudir(3.0)
         if r.momento in C.MOMENTO_IGLESIA:
             self.mensaje(f"Campanas: {r.nombre}. Acude a la iglesia. «{frases.frase(0x17)}»", 5)
         elif r.momento in C.MOMENTO_REFECTORIO:
@@ -306,6 +346,7 @@ class Juego:
                     mejor, cerca = d, m
         if cerca:
             self.dialogo_texto = f"{cerca.nombre}: «{cerca.frase_base}»"
+            self.pista(f"{cerca.nombre}: {cerca.frase_base}")
             self.estado = DIALOGO
 
     def _espejo(self) -> None:
@@ -348,6 +389,7 @@ class Juego:
             return
         self.clima_resuelto = True
         self.mensaje_final = texto
+        self.sacudir(12.0)
         self.estado = GAMEOVER
 
     def _porcentaje(self) -> int:
@@ -359,18 +401,26 @@ class Juego:
     #  RENDER
     # ================================================================== #
     def _render(self) -> None:
+        if self.estado != self._estado_prev:
+            self.fade = 1.0                      # crossfade al cambiar de estado
+            self._estado_prev = self.estado
+
         if self.estado == MENU:
             self._render_menu()
+            self._filmico_ligero()
         elif self.estado == AYUDA:
             self._render_ayuda()
         elif self.estado == INTRO:
             self._render_texto(frases.INTRO, "LA ABADÍA DEL CRIMEN")
+            self._filmico_ligero()
         elif self.estado == FINAL:
             self._render_texto(frases.FINAL, f"MISIÓN: {self._porcentaje()}%")
+            self._filmico_ligero()
         else:
-            self._render_mundo()
+            self._render_mundo()                 # escribe en self.pantalla ya post-procesado
             if self.estado in (JUGANDO, PAUSA, DIALOGO):
                 self.hud.dibujar(self.pantalla, self)
+                self._ticker_objetivo()
             if self.estado == PAUSA:
                 self._overlay_pausa()
             elif self.estado == DIALOGO:
@@ -381,46 +431,125 @@ class Juego:
                 self._overlay_final("MISTERIO RESUELTO",
                                     "Has desenmascarado a Jorge de Burgos y el libro envenenado.",
                                     C.ORO)
+            if self.mostrar_codex and self.estado == JUGANDO:
+                self._overlay_codex()
+
+        self._dibujar_transicion()
+
+    def _filmico_ligero(self) -> None:
+        if self.fx_on:
+            self.fx.velo_filmico(self.pantalla)
+
+    def _dibujar_transicion(self) -> None:
+        if self.fade <= 0.0:
+            return
+        self.fade = max(0.0, self.fade - self._dt * 2.6)
+        velo = pygame.Surface((C.ANCHO, C.ALTO))
+        velo.set_alpha(int(self.fade * 255))
+        velo.fill((6, 5, 4))
+        self.pantalla.blit(velo, (0, 0))
+
+    # ---- UI moderna: paneles "glass", ticker de objetivo y códice -------- #
+    def _glass(self, rect, alpha=150, borde=C.ORO, glow=True) -> None:
+        x, y, w, h = rect
+        panel = pygame.Surface((w, h), pygame.SRCALPHA)
+        panel.fill((18, 20, 28, alpha))
+        # brillo superior (glassmorphism)
+        top = pygame.Surface((w, h // 2), pygame.SRCALPHA)
+        top.fill((90, 110, 140, 26))
+        panel.blit(top, (0, 0))
+        self.pantalla.blit(panel, (x, y))
+        if glow:
+            borde_s = pygame.Surface((w + 6, h + 6), pygame.SRCALPHA)
+            pygame.draw.rect(borde_s, (*borde, 130), borde_s.get_rect(),
+                             width=2, border_radius=8)
+            self.pantalla.blit(borde_s, (x - 3, y - 3), special_flags=pygame.BLEND_RGBA_ADD)
+        pygame.draw.rect(self.pantalla, borde, (x, y, w, h), 1, border_radius=6)
+
+    def _ticker_objetivo(self) -> None:
+        obj = self.codex.objetivo(self)
+        w = 430
+        self._glass((16, 16, w, 62), alpha=140, borde=(90, 170, 220))
+        self.hud.texto(self.pantalla, "◈ OBJETIVO", 30, 24, self.hud.f_pequena, (140, 200, 240))
+        self.hud.texto(self.pantalla, obj, 30, 42, self.hud.f_media, C.PERGAMINO)
+        self.hud.texto(self.pantalla, "[J] Códice   [F] Efectos", 30, 66,
+                       self.hud.f_pequena, (150, 150, 160))
+
+    def _overlay_codex(self) -> None:
+        self._velo(170)
+        w, h = 820, 520
+        x, y = (C.ANCHO - w) // 2, (C.ALTO - h) // 2
+        self._glass((x, y, w, h), alpha=210, borde=(90, 170, 220))
+        self.hud.texto(self.pantalla, "CÓDICE DE LA INVESTIGACIÓN", x + w // 2, y + 34,
+                       self.hud.f_grande, (150, 200, 240), centro=True)
+        self.hud.texto(self.pantalla, self.codex.objetivo(self), x + w // 2, y + 70,
+                       self.hud.f_media, C.ORO_CLARO, centro=True)
+        pygame.draw.line(self.pantalla, (90, 120, 150), (x + 30, y + 92),
+                         (x + w - 30, y + 92), 1)
+        cy = y + 108
+        pistas = self.codex.pistas[-13:]
+        if not pistas:
+            self.hud.texto(self.pantalla, "Aún no has descubierto ninguna pista.",
+                           x + w // 2, cy + 30, self.hud.f_media, C.PERGAMINO_2, centro=True)
+        for sello, texto in pistas:
+            self.hud.texto(self.pantalla, sello, x + 30, cy, self.hud.f_pequena, (150, 190, 230))
+            t = texto if len(texto) < 78 else texto[:75] + "…"
+            self.hud.texto(self.pantalla, t, x + 130, cy, self.hud.f_pequena, C.PERGAMINO)
+            cy += 30
+        self.hud.texto(self.pantalla, "[J] Cerrar", x + w // 2, y + h - 24,
+                       self.hud.f_pequena, (150, 150, 160), centro=True)
 
     def _render_mundo(self) -> None:
         planta = self.planta_actual
-        self.pantalla.fill(C.AZUL_NOCHE if self.reloj.es_noche else (34, 40, 46))
-        cx, cy = C.ANCHO // 2, C.ALTO // 2 - 40
-        objetos_dibujo = []
+        real = self.pantalla
+        self.pantalla = self.lienzo          # los helpers dibujan en el lienzo
+        try:
+            self.lienzo.fill(C.AZUL_NOCHE if self.reloj.es_noche else (34, 40, 46))
+            sh = self.shake
+            ox = self.rng.uniform(-sh, sh) if sh > 0.2 else 0
+            oy = self.rng.uniform(-sh, sh) if sh > 0.2 else 0
+            cx, cy = C.ANCHO // 2 + int(ox), C.ALTO // 2 - 40 + int(oy)
+            objetos_dibujo = []
 
-        for gy in range(planta.alto):
-            for gx in range(planta.ancho):
-                t = planta.tiles[gy][gx]
-                if t == C.VACIO:
-                    continue
-                sx, sy = mundo_a_pantalla(gx, gy, self.cam_x, self.cam_y, cx, cy)
-                if not (-TILE_MARGEN < sx < C.ANCHO + TILE_MARGEN and
-                        -TILE_MARGEN < sy < C.ALTO + TILE_MARGEN):
-                    continue
-                if t in (C.SUELO, C.PUERTA, C.ALTAR, C.CAMA, C.ESCALERA, C.ESPEJO, C.MESA):
-                    self._suelo(planta, gx, gy, cx, cy, t)
-                if t in (C.MURO, C.ALTAR, C.CAMA, C.ESPEJO, C.MESA):
-                    objetos_dibujo.append((profundidad(gx, gy),
-                                           lambda gx=gx, gy=gy, t=t: self._bloque(planta, gx, gy, cx, cy, t)))
+            for gy in range(planta.alto):
+                for gx in range(planta.ancho):
+                    t = planta.tiles[gy][gx]
+                    if t == C.VACIO:
+                        continue
+                    sx, sy = mundo_a_pantalla(gx, gy, self.cam_x, self.cam_y, cx, cy)
+                    if not (-TILE_MARGEN < sx < C.ANCHO + TILE_MARGEN and
+                            -TILE_MARGEN < sy < C.ALTO + TILE_MARGEN):
+                        continue
+                    if t in (C.SUELO, C.PUERTA, C.ALTAR, C.CAMA, C.ESCALERA, C.ESPEJO, C.MESA):
+                        self._suelo(planta, gx, gy, cx, cy, t)
+                    if t in (C.MURO, C.ALTAR, C.CAMA, C.ESPEJO, C.MESA):
+                        objetos_dibujo.append((profundidad(gx, gy),
+                                               lambda gx=gx, gy=gy, t=t: self._bloque(planta, gx, gy, cx, cy, t)))
 
-        # Objetos en el suelo
-        for obj in self.objetos.values():
-            if obj.en_suelo and obj.planta == self.guillermo.planta:
-                objetos_dibujo.append((profundidad(obj.gx, obj.gy) + 0.3,
-                                       lambda o=obj: self._objeto(o, cx, cy)))
-        # Entidades
-        ents = [m for m in self.monjes.values()
-                if m.vivo and m.activo and m.planta == self.guillermo.planta]
-        ents += [self.adso, self.guillermo]
-        for e in ents:
-            objetos_dibujo.append((profundidad(e.x, e.y) + 0.4,
-                                   lambda e=e: self._entidad(e, cx, cy)))
+            for obj in self.objetos.values():
+                if obj.en_suelo and obj.planta == self.guillermo.planta:
+                    objetos_dibujo.append((profundidad(obj.gx, obj.gy) + 0.3,
+                                           lambda o=obj: self._objeto(o, cx, cy)))
+            ents = [m for m in self.monjes.values()
+                    if m.vivo and m.activo and m.planta == self.guillermo.planta]
+            ents += [self.adso, self.guillermo]
+            for e in ents:
+                objetos_dibujo.append((profundidad(e.x, e.y) + 0.4,
+                                       lambda e=e: self._entidad(e, cx, cy)))
 
-        objetos_dibujo.sort(key=lambda o: o[0])
-        for _, fn in objetos_dibujo:
-            fn()
+            objetos_dibujo.sort(key=lambda o: o[0])
+            for _, fn in objetos_dibujo:
+                fn()
 
-        self._iluminacion(planta, cx, cy)
+            self._iluminacion(planta, cx, cy)
+            self.particulas.dibujar(self.lienzo, self, cx, cy)
+        finally:
+            self.pantalla = real
+
+        if self.fx_on:
+            self.fx.aplicar(self.lienzo, real, self._dt)
+        else:
+            real.blit(self.lienzo, (0, 0))
 
     def _rombo(self, gx, gy, cx, cy, dz=0):
         n = mundo_a_pantalla(gx, gy, self.cam_x, self.cam_y, cx, cy)
@@ -495,23 +624,66 @@ class Juego:
             self.hud.texto(self.pantalla, ent.nombre, sx, top_y - 12,
                            self.hud.f_pequena, C.PERGAMINO, centro=True)
 
+    def _glow(self, radio, color, nivel):
+        """Halo aditivo con brillo prehorneado (nivel 0..5) — sin copias por frame."""
+        key = (radio, color, nivel)
+        s = self._glow_cache.get(key)
+        if s is None:
+            b = nivel / 5.0
+            s = pygame.Surface((radio * 2, radio * 2)).convert()
+            s.fill((0, 0, 0))
+            for r in range(radio, 0, -6):
+                f = ((1 - r / radio) ** 1.4) * b
+                pygame.draw.circle(s, (int(color[0] * f), int(color[1] * f),
+                                       int(color[2] * f)), (radio, radio), r)
+            self._glow_cache[key] = s
+        return s
+
+    def _mask(self, radio):
+        s = self._mask_cache.get(radio)
+        if s is None:
+            s = pygame.Surface((radio * 2, radio * 2), pygame.SRCALPHA)
+            for r in range(radio, 0, -8):
+                a = int(255 * (1 - r / radio) ** 1.2)
+                pygame.draw.circle(s, (0, 0, 0, a), (radio, radio), r)
+            self._mask_cache[radio] = s
+        return s
+
     def _iluminacion(self, planta, cx, cy) -> None:
+        con_lampara = self.objetos["lampara"].portador == "adso" and self.aceite > 0
         osc = self.reloj.oscuridad()
         if planta.oscura:
-            con_luz = self.objetos["lampara"].portador == "adso" and self.aceite > 0
             zona = planta.zona(*self.guillermo.tile)
-            osc = 0.55 if (con_luz or zona == "espejo") else 0.95
+            osc = 0.55 if (con_lampara or zona == "espejo") else 0.95
+        t = self.reloj.t + self.reloj.dia * 3.0
+
+        # 1) Halos cálidos aditivos de las antorchas (ambiente, con parpadeo).
+        base = 0.9 if osc > 0.15 else 0.45
+        for i, (lx, ly, color, radio) in enumerate(planta.luces):
+            sx, sy = mundo_a_pantalla(lx + 0.5, ly + 0.5, self.cam_x, self.cam_y, cx, cy)
+            if not (-radio < sx < C.ANCHO + radio and -radio < sy < C.ALTO + radio):
+                continue
+            flick = 0.72 + 0.22 * math.sin(t * 7 + i * 1.7) + self.rng.uniform(-0.05, 0.05)
+            nivel = max(1, min(5, round(base * max(0.35, flick) * 5)))
+            g = self._glow(radio, color, nivel)
+            self.pantalla.blit(g, (sx - radio, sy - radio), special_flags=pygame.BLEND_RGB_ADD)
+
         if osc <= 0.01:
             return
+
+        # 2) Oscuridad con "agujeros" de luz (jugador + antorchas).
         oscuridad = pygame.Surface((C.ANCHO, C.ALTO), pygame.SRCALPHA)
         oscuridad.fill((6, 8, 20, int(238 * osc)))
         gx, gy = mundo_a_pantalla(self.guillermo.x, self.guillermo.y, self.cam_x, self.cam_y, cx, cy)
-        radio = 200 if self.objetos["lampara"].portador == "adso" and self.aceite > 0 else 120
-        luz = pygame.Surface((radio * 2, radio * 2), pygame.SRCALPHA)
-        for r in range(radio, 0, -8):
-            a = int(255 * (1 - r / radio))
-            pygame.draw.circle(luz, (0, 0, 0, a), (radio, radio), r)
-        oscuridad.blit(luz, (gx - radio, gy - radio), special_flags=pygame.BLEND_RGBA_SUB)
+        radio_j = 210 if con_lampara else 130
+        m = self._mask(radio_j)
+        oscuridad.blit(m, (gx - radio_j, gy - radio_j), special_flags=pygame.BLEND_RGBA_SUB)
+        for lx, ly, _color, radio in planta.luces:
+            sx, sy = mundo_a_pantalla(lx + 0.5, ly + 0.5, self.cam_x, self.cam_y, cx, cy)
+            if not (-radio < sx < C.ANCHO + radio and -radio < sy < C.ALTO + radio):
+                continue
+            oscuridad.blit(self._mask(radio), (sx - radio, sy - radio),
+                           special_flags=pygame.BLEND_RGBA_SUB)
         self.pantalla.blit(oscuridad, (0, 0))
 
     # ------------------------------------------------------------------ #
@@ -597,6 +769,7 @@ class Juego:
             "MOVIMIENTO: flechas o WASD (isométrico)",
             "CONTROLAR A ADSO: mantén CTRL y muévete",
             "ACCIÓN (hablar / escaleras / espejo): E",
+            "CÓDICE de pistas: J     EFECTOS visuales: F",
             "PAUSA: ESC/P     GUARDAR: F5",
             "",
             "OBSEQUIUM (0–31): tu obediencia. Acude a los oficios (Prima,",
@@ -630,6 +803,7 @@ class Juego:
                         for k, o in self.objetos.items()},
             "monjes": {k: [m.x, m.y, m.planta, m.vivo, m.activo]
                        for k, m in self.monjes.items()},
+            "codex": self.codex.to_dict(),
         }
         try:
             with open(C.ARCHIVO_GUARDADO, "w", encoding="utf-8") as f:
@@ -660,6 +834,8 @@ class Juego:
             if k in self.monjes:
                 m = self.monjes[k]
                 m.x, m.y, m.planta, m.vivo, m.activo = x, y, planta, vivo, activo
+        if "codex" in d:
+            self.codex.from_dict(d["codex"])
         self.cam_x, self.cam_y = foco_camara(self.guillermo.x, self.guillermo.y)
         self.mensaje("Partida cargada.", 3)
         return True

@@ -12,7 +12,14 @@ objetos** con función, mecánica de **obsequium**, las **7 horas canónicas**, 
 **guion de los 7 días** con sus crímenes, el **enigma del espejo** y los
 **diálogos reales en español**. Un único ejecutable: `abadia.py`.
 
-![Planta de la abadía](assets/planta_0.png)
+**Presentación "next-gen" 2026:** pipeline de **post-procesado** (bloom, viñeta
+y grano fílmico), **iluminación dinámica** con antorchas cálidas parpadeantes y
+lámpara de aceite, **sistema de partículas** (polvo en suspensión, llamas,
+chispas), **sacudida de cámara**, **transiciones** con fundido, HUD
+**glassmorphism** con ticker de objetivo y un **códice de detective** que
+registra las pistas (tecla `J`).
+
+![La abadía con iluminación dinámica](assets/nextgen_baja.png)
 
 ## 🚀 Cómo jugar
 
@@ -30,11 +37,14 @@ Requiere **Python 3.10+**. (`numpy` es opcional: activa las campanas.)
 | Mover a Guillermo | Flechas o `W A S D` |
 | Controlar a Adso | mantén `CTRL` + mover |
 | Acción (hablar / subir escaleras / espejo) | `E` |
+| Códice de pistas | `J` |
+| Efectos visuales on/off | `F` |
 | Pausa | `ESC` / `P` |
 | Guardar | `F5` |
 | Menú | Flechas + `Enter` |
 
-Los objetos se recogen al pasar por encima.
+Los objetos se recogen al pasar por encima. Si tu equipo va justo de FPS,
+pulsa `F` para desactivar el post-procesado.
 
 ## 🎯 Objetivo
 
@@ -66,6 +76,8 @@ juego/
   guion.py             → eventos programados de los 7 días
   hud.py               → interfaz (obsequium, reloj, inventario, minimapa)
   audio.py             → campanas procedurales (opcional)
+  efectos.py           → post-procesado (bloom/viñeta/grano) y partículas
+  codex.py             → códice de pistas y objetivos
   juego.py             → núcleo: bucle, estados, render, reglas
 ```
 
@@ -77,9 +89,13 @@ juego/
 
 ## 🌙 Capturas
 
-| Abadía (planta baja) | Biblioteca-laberinto (a oscuras) |
+| Abadía (iluminación dinámica) | Biblioteca-laberinto (a oscuras) |
 |---|---|
-| ![baja](assets/planta_0.png) | ![biblioteca](assets/planta_2.png) |
+| ![baja](assets/nextgen_baja.png) | ![biblioteca](assets/nextgen_biblioteca.png) |
+
+| Códice de la investigación (`J`) |
+|---|
+| ![codex](assets/nextgen_codex.png) |
 
 ---
 

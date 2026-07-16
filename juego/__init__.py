@@ -10,8 +10,8 @@ dinámica, mecánica de *obsequium*, calendario de horas canónicas, inventario,
 minimapa y sistema de guardado.
 """
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 __all__ = [
     "config", "iso", "mapa", "pathfinding", "personajes", "objetos",
-    "tiempo", "frases", "guion", "hud", "audio", "juego",
+    "tiempo", "frases", "guion", "hud", "audio", "efectos", "codex", "juego",
 ]

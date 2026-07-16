@@ -40,7 +40,11 @@ class Planta:
         self.zonas = [["claustro"] * ancho for _ in range(alto)]
         self.estancias: dict[str, Estancia] = {}
         self.anclas: dict[str, tuple[int, int]] = {}
+        self.luces: list[tuple[int, int, tuple, int]] = []   # (gx,gy,color,radio)
         self.oscura = False
+
+    def add_luz(self, gx, gy, color=(255, 170, 70), radio=150) -> None:
+        self.luces.append((gx, gy, color, radio))
 
     # ------------------------------------------------------------------ #
     def add_estancia(self, e: Estancia) -> None:
@@ -146,6 +150,17 @@ class Mapa:
         ig = p.estancias["iglesia"]
         p.poner(ig.x + ig.w // 2, ig.y + 1, C.ALTAR)
         p.anclas["altar"] = (ig.x + ig.w // 2, ig.y + 2)
+        # Antorchas de pared y velas del altar.
+        p.add_luz(ig.x + ig.w // 2, ig.y + 1, (255, 210, 120), 170)
+        p.add_luz(ig.x + 2, ig.y + 2, (255, 160, 60), 120)
+        p.add_luz(ig.x + ig.w - 3, ig.y + 2, (255, 160, 60), 120)
+        cl = p.estancias["claustro"]
+        p.add_luz(cl.x + 2, cl.y + 2, (255, 160, 60), 120)
+        p.add_luz(cl.x + cl.w - 3, cl.y + cl.h - 3, (255, 160, 60), 120)
+        re = p.estancias["refectorio"]
+        p.add_luz(re.x + 2, re.y + 2, (255, 165, 70), 120)
+        co = p.estancias["cocina"]
+        p.add_luz(co.x + 2, co.y + 2, (255, 140, 50), 110)
         return p
 
     def _construir_scriptorium(self) -> Planta:
@@ -158,6 +173,9 @@ class Mapa:
         p.anclas["mesa_pergamino"] = (7, 7)
         p.anclas["mesa_libro"] = (9, 7)
         p.anclas["mesa_malaquias"] = (19, 12)
+        p.add_luz(4, 4, (255, 170, 70), 140)
+        p.add_luz(21, 4, (255, 170, 70), 140)
+        p.add_luz(12, 15, (255, 160, 60), 130)
         return p
 
     def _construir_biblioteca(self) -> Planta:
@@ -187,6 +205,10 @@ class Mapa:
         p.anclas["sala_iluminada"] = p.estancias["sala_iluminada"].centro
         p.pasillo(p.anclas["biblioteca"], p.anclas["espejo"], "biblioteca")
         p.pasillo(p.anclas["biblioteca"], p.anclas["sala_iluminada"], "biblioteca")
+        # La sala del espejo y la iluminada tienen luz propia (fría/dorada).
+        p.add_luz(esp.x + esp.w // 2, esp.y + 2, (150, 190, 255), 150)
+        sil = p.estancias["sala_iluminada"]
+        p.add_luz(sil.x + sil.w // 2, sil.y + sil.h // 2, (255, 220, 150), 150)
         return p
 
     # ------------------------------------------------------------------ #

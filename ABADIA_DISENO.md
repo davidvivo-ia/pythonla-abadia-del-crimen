@@ -105,22 +105,32 @@ Todo autocontenido: una sola dependencia (`pygame`) y un único ejecutable
 
 ```
 pythonla-abadia-del-crimen/
-├── abadia.py              ← LANZADOR (punto de entrada único)
-├── requirements.txt       ← dependencias (pygame)
-├── ABADIA_DISENO.md       ← este documento
-├── README.md              ← guía rápida
-├── assets/                ← capturas / recursos
-└── juego/                 ← paquete del juego
+├── abadia.py                 ← LANZADOR (punto de entrada único)
+├── requirements.txt          ← dependencias (pygame; numpy opcional)
+├── ABADIA_DISENO.md          ← este documento
+├── COMPARATIVA_Y_MEJORAS.md  ← comparativa con el original y plan de mejora
+├── README.md                 ← guía rápida
+├── assets/                   ← capturas / recursos
+└── juego/                    ← paquete del juego
     ├── __init__.py
-    ├── config.py          ← constantes, paleta, horario, ajustes
-    ├── iso.py             ← proyección isométrica y cámara
-    ├── mapa.py            ← plano de la abadía (estancias, muros, zonas)
-    ├── pathfinding.py     ← A* sobre la rejilla
-    ├── entidades.py       ← Guillermo, Adso y los monjes (IA)
-    ├── tiempo.py          ← reloj de días y horas canónicas
-    ├── hud.py             ← interfaz: obsequium, reloj, minimapa
-    └── juego.py           ← núcleo: bucle, estados, render y reglas
+    ├── config.py             ← constantes canónicas, paleta, horario
+    ├── iso.py                ← proyección isométrica y cámara
+    ├── mapa.py               ← 3 plantas (abadía, scriptorium, biblioteca) + escaleras
+    ├── pathfinding.py        ← A* sobre la rejilla
+    ├── personajes.py         ← Guillermo, Adso y los 6 monjes con IA por horarios
+    ├── objetos.py            ← los 8 objetos y su función
+    ├── tiempo.py             ← reloj de días y 7 horas canónicas
+    ├── frases.py             ← diálogos reales en español + intro/final
+    ├── guion.py              ← eventos programados de los 7 días
+    ├── hud.py                ← interfaz: obsequium, reloj, inventario, minimapa
+    ├── audio.py              ← campanas procedurales (opcional)
+    └── juego.py              ← núcleo: bucle, estados, render y reglas
 ```
+
+> **Nota de versiones.** La v1.0 fue una interpretación libre. La **v2.0**
+> (actual) reconstruye el juego a partir de la ingeniería inversa del original;
+> la comparativa completa y las fuentes están en
+> [`COMPARATIVA_Y_MEJORAS.md`](COMPARATIVA_Y_MEJORAS.md).
 
 **Principio de diseño:** separación por responsabilidades. `config.py` centraliza
 todos los números "mágicos" para poder ajustar el balance sin tocar la lógica.
@@ -286,37 +296,39 @@ El bucle mantiene **60 FPS** con `pygame.time.Clock`. El `dt` se limita a
 
 ## 9. Reglas de juego
 
-### Horario canónico
-Once franjas se repiten cada día (`config.HORAS`). Cada franja dura
-`SEGUNDOS_POR_FRANJA` (42 s) de tiempo real. Algunas exigen estar en una zona:
+### Horario canónico (fiel al original)
+Cada día tiene **7 momentos** (`config.HORAS` → `NOCHE, PRIMA, TERCIA, SEXTA,
+NONA, VÍSPERAS, COMPLETAS`). La partida empieza en **Día 1 · Nona**. Algunos
+momentos exigen estar en un sitio:
 
-- **Oficios** (Laudes, Prima, Sexta, Vísperas, Completas) → **iglesia**.
-- **Comida** → **refectorio**.
-- **Noche** → **celda**.
+- **Oficios** (Prima, Vísperas) → **iglesia**.
+- **Comida** (Sexta) → **refectorio**.
+- **Descanso** (Completas, Noche) → **tu celda**.
 
 ### Obsequium (obediencia)
-Barra de `0` a `100`. Cada segundo se ajusta según dónde estés:
+Entero de **0 a 31** (como en el original). **Solo baja**, de **2 en 2**, y
+**nunca se regenera**. Se penaliza por infracciones puntuales:
 
-| Situación | Efecto por segundo |
-|---|---|
-| En la zona correcta durante un oficio | **+2.4** (regenera) |
-| Faltar a un oficio | **−5.0** |
-| Deambular de noche fuera de la celda | **−1.6** |
-| Estar en la biblioteca (prohibida) | **−3.2** |
-| Tiempo libre en zona permitida | **+1.0** (leve) |
+| Infracción | Frase del Abad | Efecto |
+|---|---|---|
+| Faltar a un oficio | «Llegáis tarde, fray Guillermo» | **−2** |
+| No ocupar tu sitio en la comida | «Ocupad vuestro sitio» | **−2** |
+| No dormir en tu celda | «Entrad en vuestra celda» | **−2** |
+| No entregar el manuscrito al Abad | «Dadme el manuscrito» | **−2** |
 
-Si el obsequium llega a **0** → *game over*: el Abad te expulsa.
+Si el obsequium baja de **0** → *game over*: «No habéis respetado mis órdenes.
+Abandonad para siempre esta abadía».
 
-### Objetivo y victoria
-Reúne las **cuatro reliquias** repartidas por la abadía:
-
-1. **Llave del Aedificium** — refectorio
-2. **Lentes de Guillermo** — scriptorium
-3. **Lámpara de aceite** — cocina (amplía tu halo de luz de noche)
-4. **Pergamino cifrado** — sala capitular
-
-Con las cuatro, se revela **el libro prohibido** en la biblioteca. Alcánzalo
-antes de que termine el **séptimo día** para **resolver el misterio** y ganar.
+### Objetos (8) y objetivo
+Los **8 objetos** del original: **libro, guantes, gafas, pergamino, 3 llaves y
+lámpara**. Para ganar debes: reunir **guantes**, **gafas** y **pergamino**;
+subir al **scriptorium** y a la **biblioteca** (a oscuras: necesitas la
+**lámpara** que porta Adso); resolver el **enigma del espejo** (número romano
+IXX/XIX/XXI) y llegar ante **Jorge** el 6.º/7.º día. Con los **guantes**
+sobrevives al **libro envenenado** y **resuelves el misterio**; sin ellos,
+mueres. Otras muertes: obsequium a 0, perderse en la oscuridad, o agotarse el
+7.º día. La puntuación final sigue la fórmula del original:
+`7·(día−1) + momento + 4·bonus`.
 
 ---
 
@@ -338,7 +350,7 @@ python3 abadia.py
 |---|---|
 | Mover a Guillermo | Flechas o `W A S D` |
 | Controlar a Adso | mantén `CTRL` + mover |
-| Hablar / examinar | `E` (junto a un monje) |
+| Acción (hablar / escaleras / espejo) | `E` |
 | Pausa | `ESC` o `P` |
 | Guardar | `F5` |
 | Menú / continuar | flechas + `Enter` |

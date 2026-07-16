@@ -1,25 +1,27 @@
 # 🕯️ La Abadía del Crimen — Edición 2026
 
-Remake moderno en **Python + pygame** del clásico de **Paco Menéndez / Opera
-Soft** (1987), inspirado en *El nombre de la rosa* de **Umberto Eco**.
+Remake moderno y **fiel** en **Python + pygame** del clásico de **Paco
+Menéndez / Opera Soft** (1987), inspirado en *El nombre de la rosa* de **Umberto
+Eco**. Reconstruido a partir de la ingeniería inversa del original (desensamblado
+de Manuel Abadía y los ports de [ibaca](https://github.com/ibaca/la-abadia-del-crimen)
+y [ultrabolido](https://github.com/ultrabolido/abadia)).
 
-Motor **isométrico** propio, IA de monjes, ciclo **día/noche** con iluminación
-dinámica, mecánica de **obsequium**, horario de **horas canónicas**, inventario,
-**minimapa** y guardado. Un único ejecutable: `abadia.py`.
+Motor **isométrico** propio, **3 plantas** (abadía, scriptorium y
+biblioteca-laberinto), los **8 personajes** reales con IA por horarios, los **8
+objetos** con función, mecánica de **obsequium**, las **7 horas canónicas**, el
+**guion de los 7 días** con sus crímenes, el **enigma del espejo** y los
+**diálogos reales en español**. Un único ejecutable: `abadia.py`.
 
-![Captura del juego](assets/captura_juego.png)
+![Planta de la abadía](assets/planta_0.png)
 
 ## 🚀 Cómo jugar
 
 ```bash
-# 1) Instala la dependencia
 pip install -r requirements.txt
-
-# 2) Arranca el juego
 python3 abadia.py
 ```
 
-Requiere **Python 3.10+**.
+Requiere **Python 3.10+**. (`numpy` es opcional: activa las campanas.)
 
 ## 🎮 Controles
 
@@ -27,45 +29,61 @@ Requiere **Python 3.10+**.
 |---|---|
 | Mover a Guillermo | Flechas o `W A S D` |
 | Controlar a Adso | mantén `CTRL` + mover |
-| Hablar / examinar | `E` |
+| Acción (hablar / subir escaleras / espejo) | `E` |
 | Pausa | `ESC` / `P` |
-| Guardar partida | `F5` |
-| Navegar el menú | Flechas + `Enter` |
+| Guardar | `F5` |
+| Menú | Flechas + `Enter` |
+
+Los objetos se recogen al pasar por encima.
 
 ## 🎯 Objetivo
 
-Encarnas a **Fray Guillermo de Occam**, acompañado de tu novicio **Adso**.
-Durante siete días debes:
+Eres **Fray Guillermo de Occam**; **Adso** te acompaña. Durante **siete días**:
 
-1. Cumplir la disciplina monástica (acudir a los oficios, no deambular de
-   noche) para mantener alto tu **obsequium**. Si llega a cero, el Abad te
-   expulsa.
-2. Reunir las **cuatro reliquias** (llave, lentes, lámpara y pergamino)
-   repartidas por la abadía.
-3. Entrar en la **biblioteca prohibida** y hallar el **libro** que resuelve el
-   crimen, antes de que acabe el séptimo día.
+1. Mantén tu **obsequium** (0–31): acude a los oficios (Prima, Vísperas), a la
+   comida (Sexta) y duerme en tu celda (Completas, Noche). Cada falta resta 2;
+   si baja de 0, el Abad te expulsa.
+2. Reúne **guantes**, **gafas** y el **pergamino** de Venancio, y sube por las
+   escaleras al **scriptorium** y a la **biblioteca** (necesitas la **lámpara**
+   de Adso para no perderte en la oscuridad).
+3. Resuelve el **enigma del espejo** y llega ante **Jorge de Burgos** el 6.º/7.º
+   día. Con los **guantes** sobrevivirás al **libro envenenado** (el *Coena
+   Cipriani* de Aristóteles) y resolverás el misterio.
 
 ## 📂 Estructura
 
 ```
-abadia.py            → lanzador (punto de entrada)
-juego/               → paquete del juego (motor, mapa, IA, HUD, reglas)
-ABADIA_DISENO.md     → documento de diseño y guía de desarrollo completa
-requirements.txt     → dependencias
+abadia.py              → lanzador
+juego/
+  config.py            → constantes canónicas (horas, objetos, obsequium)
+  iso.py               → proyección isométrica
+  mapa.py              → 3 plantas + escaleras
+  pathfinding.py       → A* para la IA
+  personajes.py        → Guillermo, Adso y los 6 monjes con IA por horarios
+  objetos.py           → los 8 objetos
+  tiempo.py            → reloj de días y horas canónicas
+  frases.py            → diálogos reales en español + intro/final
+  guion.py             → eventos programados de los 7 días
+  hud.py               → interfaz (obsequium, reloj, inventario, minimapa)
+  audio.py             → campanas procedurales (opcional)
+  juego.py             → núcleo: bucle, estados, render, reglas
 ```
 
 ## 📖 Documentación
 
-El diseño completo, la matemática isométrica, el análisis del original y la
-guía paso a paso están en **[`ABADIA_DISENO.md`](ABADIA_DISENO.md)**.
+- **[`ABADIA_DISENO.md`](ABADIA_DISENO.md)** — diseño, motor y guía de desarrollo.
+- **[`COMPARATIVA_Y_MEJORAS.md`](COMPARATIVA_Y_MEJORAS.md)** — fuentes estudiadas,
+  comparativa con el original y plan de mejora aplicado.
 
 ## 🌙 Capturas
 
-| Día | Noche (iluminación dinámica) |
+| Abadía (planta baja) | Biblioteca-laberinto (a oscuras) |
 |---|---|
-| ![día](assets/captura_juego.png) | ![noche](assets/captura_noche.png) |
+| ![baja](assets/planta_0.png) | ![biblioteca](assets/planta_2.png) |
 
 ---
 
 *Homenaje educativo y no comercial. Todos los derechos de la obra original
-pertenecen a sus autores: Paco Menéndez, Juan Delcán y Opera Soft.*
+pertenecen a sus autores: Paco Menéndez, Juan Delcán y Opera Soft. La
+reconstrucción se basa en la ingeniería inversa de Manuel Abadía y no incluye
+datos binarios propiedad de Opera Soft.*

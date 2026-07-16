@@ -1,0 +1,4 @@
+pygame>=2.5.0
+# Opcional: numpy habilita las campanas de audio procedural (el juego
+# funciona en silencio si no está instalado).
+numpy>=1.21.0

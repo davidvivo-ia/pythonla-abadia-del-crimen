@@ -39,17 +39,17 @@ GRIS_OSCURO = (70, 68, 64)
 BLANCO      = (238, 232, 220)
 
 COLORES_ZONA = {
-    "claustro":   ((150, 146, 128), (120, 116, 100)),
-    "iglesia":    ((120, 108, 132), (96, 84, 108)),
-    "refectorio": ((160, 132, 96),  (130, 104, 72)),
-    "cocina":     ((150, 120, 92),  (120, 92, 68)),
-    "scriptorium":((146, 150, 120), (116, 120, 92)),
-    "biblioteca": ((92, 82, 70),    (66, 58, 48)),
-    "celda":      ((132, 128, 116), (104, 100, 90)),
-    "capitular":  ((138, 128, 148), (108, 100, 118)),
-    "enfermeria": ((120, 148, 132), (92, 118, 104)),
-    "cripta":     ((80, 76, 88),    (56, 52, 64)),
-    "espejo":     ((150, 120, 150), (110, 86, 110)),
+    "claustro":   ((158, 152, 128), (124, 118, 98)),
+    "iglesia":    ((138, 118, 160), (104, 86, 126)),
+    "refectorio": ((184, 146, 96),  (146, 112, 70)),
+    "cocina":     ((176, 128, 84),  (138, 96, 60)),
+    "scriptorium":((154, 166, 118), (118, 130, 86)),
+    "biblioteca": ((96, 84, 70),    (68, 58, 48)),
+    "celda":      ((150, 142, 124), (116, 108, 92)),
+    "capitular":  ((150, 134, 170), (114, 100, 132)),
+    "enfermeria": ((118, 166, 140), (86, 128, 106)),
+    "cripta":     ((90, 84, 104),   (62, 56, 74)),
+    "espejo":     ((168, 132, 170), (126, 94, 128)),
 }
 
 # --------------------------------------------------------------------------- #
@@ -74,6 +74,24 @@ PLANTA_BAJA = 0
 PLANTA_SCRIPTORIUM = 1
 PLANTA_BIBLIOTECA = 2
 NOMBRE_PLANTA = {0: "Abadía", 1: "Scriptorium", 2: "Biblioteca"}
+
+# Nombres legibles de cada estancia (etiquetas en el mundo, HUD y minimapa).
+NOMBRE_ESTANCIA = {
+    "iglesia": "Iglesia", "claustro": "Claustro", "refectorio": "Refectorio",
+    "cocina": "Cocina", "capitular": "Sala capitular",
+    "enfermeria": "Enfermería (Severino)", "celda_abad": "Celda del Abad",
+    "celdas": "Celdas de los monjes", "celda_guillermo": "Tu celda",
+    "cripta": "Cripta", "entrada": "Entrada · escalera",
+    "scriptorium": "Scriptorium", "biblioteca": "Biblioteca (laberinto)",
+    "sala_espejo": "Sala del espejo", "sala_iluminada": "Sala iluminada",
+}
+NOMBRE_CORTO = {
+    "iglesia": "IGL", "claustro": "CLA", "refectorio": "REF", "cocina": "COC",
+    "capitular": "CAP", "enfermeria": "ENF", "celda_abad": "ABA", "celdas": "CEL",
+    "celda_guillermo": "TÚ", "cripta": "CRI", "entrada": "ENT",
+    "scriptorium": "SCR", "biblioteca": "BIB", "sala_espejo": "ESP",
+    "sala_iluminada": "LUZ",
+}
 
 # --------------------------------------------------------------------------- #
 # Horas canónicas (momento del día). Orden del original.

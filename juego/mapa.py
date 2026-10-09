@@ -103,6 +103,13 @@ class Planta:
         gx, gy = self.anclas.get(clave, (self.ancho // 2, self.alto // 2))
         return gx + 0.5, gy + 0.5
 
+    def estancia_de(self, gx: int, gy: int) -> str | None:
+        """Clave de la estancia que contiene el tile (interior o puerta)."""
+        for e in self.estancias.values():
+            if e.x <= gx < e.x + e.w and e.y <= gy < e.y + e.h:
+                return e.clave
+        return None
+
 
 class Mapa:
     """Contenedor de las 3 plantas y las escaleras que las conectan."""

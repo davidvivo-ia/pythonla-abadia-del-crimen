@@ -54,11 +54,14 @@ class Reloj:
     def hora_texto(self) -> str:
         return f"Día {self.dia} · {self.nombre}"
 
+    # Oscuridad objetivo [0..1] según la franja (para la iluminación). Se
+    # mantiene moderada para que las estancias sigan siendo legibles de noche;
+    # la biblioteca tiene su propia oscuridad total.
     def oscuridad(self) -> float:
         if self.momento == C.NOCHE:
-            return 0.85
+            return 0.6
         if self.momento == C.COMPLETAS:
-            return 0.55
+            return 0.4
         if self.momento == C.VISPERAS:
-            return 0.25
+            return 0.18
         return 0.0

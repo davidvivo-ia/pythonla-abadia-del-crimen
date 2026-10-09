@@ -35,7 +35,7 @@ class PostFX:
         v = pygame.Surface((self.ancho, self.alto), pygame.SRCALPHA)
         cx, cy = self.ancho / 2, self.alto / 2
         maxd = math.hypot(cx, cy)
-        alpha_max = 120
+        alpha_max = 80
         N = 90
         for i in range(N):
             f = i / N                      # 0 -> anillo exterior; 1 -> centro

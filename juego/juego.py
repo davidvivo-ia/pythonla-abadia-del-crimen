@@ -85,6 +85,7 @@ class Juego:
         self.particulas = Particulas()
         self.shake = 0.0
         self.mostrar_codex = False
+        self._estancia_prev = None
 
     def mensaje(self, txt, dur=4.0) -> None:
         self.mensajes.append([txt, dur])
@@ -210,6 +211,7 @@ class Juego:
         self._recoger_objetos()
         self._oscuridad_biblioteca(dt)
         self.particulas.actualizar(dt, self)
+        self._aviso_estancia()
 
         prev_m = self.reloj.momento
         if self.reloj.actualizar(dt):
@@ -223,6 +225,18 @@ class Juego:
 
         if self.reloj.fin_del_juego and not self.clima_resuelto:
             self._fin(f"El Abad: «{frases.frase(0x25)}» Se acaba el séptimo día.")
+
+    def _aviso_estancia(self) -> None:
+        """Aviso breve al entrar en una estancia distinta."""
+        clave = self.planta_actual.estancia_de(*self.guillermo.tile)
+        if clave and clave != self._estancia_prev:
+            self.mensaje(f"— {C.NOMBRE_ESTANCIA.get(clave, clave)} —", 2.5)
+        if clave:
+            self._estancia_prev = clave
+
+    def estancia_actual_nombre(self) -> str:
+        clave = self.planta_actual.estancia_de(*self.guillermo.tile)
+        return C.NOMBRE_ESTANCIA.get(clave, "Pasillo") if clave else "Pasillo"
 
     def _entrada_direccion(self, teclas):
         dx = dy = 0.0
@@ -488,7 +502,8 @@ class Juego:
 
     def _ticker_objetivo(self) -> None:
         obj = self.codex.objetivo(self)
-        w = 430
+        # El panel se ensancha con el texto para que nunca desborde.
+        w = max(430, min(C.ANCHO - 340, self.hud.f_media.size(obj)[0] + 44))
         self._glass((16, 16, w, 62), alpha=140, borde=(90, 170, 220))
         self.hud.texto(self.pantalla, "◈ OBJETIVO", 30, 24, self.hud.f_pequena, (140, 200, 240))
         self.hud.texto(self.pantalla, obj, 30, 42, self.hud.f_media, C.PERGAMINO)
@@ -570,6 +585,37 @@ class Juego:
             self.fx.aplicar(self.lienzo, real, self._dt)
         else:
             real.blit(self.lienzo, (0, 0))
+        # Etiquetas de las estancias: nítidas, sobre el post-procesado.
+        self._etiquetas_estancias(planta, cx, cy)
+
+    def _etiquetas_estancias(self, planta, cx, cy) -> None:
+        """Nombre de cada estancia visible, flotando sobre su centro."""
+        actual = planta.estancia_de(*self.guillermo.tile)
+        for clave, e in planta.estancias.items():
+            nombre = C.NOMBRE_ESTANCIA.get(clave, clave)
+            gx, gy = e.centro
+            sx, sy = mundo_a_pantalla(gx + 0.5, gy + 0.5, self.cam_x, self.cam_y, cx, cy)
+            if not (-120 < sx < C.ANCHO + 120 and 100 < sy < C.ALTO - 100):
+                continue
+            es_actual = clave == actual
+            fuente = self.hud.f_media if es_actual else self.hud.f_pequena
+            color = C.ORO_CLARO if es_actual else C.PERGAMINO
+            img = fuente.render(nombre, True, color)
+            w, h = img.get_width() + 18, img.get_height() + 8
+            tag = pygame.Surface((w, h), pygame.SRCALPHA)
+            tag.fill((14, 12, 10, 170 if es_actual else 125))
+            pygame.draw.rect(tag, (*color, 120 if es_actual else 70), tag.get_rect(), 1,
+                             border_radius=5)
+            self.pantalla.blit(tag, (sx - w // 2, sy - 46 - h))
+            self.pantalla.blit(img, (sx - w // 2 + 9, sy - 46 - h + 4))
+        # Escaleras: siempre señaladas.
+        for (pl, gx, gy), _dst in self.mapa.escaleras.items():
+            if pl != self.guillermo.planta:
+                continue
+            sx, sy = mundo_a_pantalla(gx + 0.5, gy + 0.5, self.cam_x, self.cam_y, cx, cy)
+            if -60 < sx < C.ANCHO + 60 and 100 < sy < C.ALTO - 90:
+                self.hud.texto(self.pantalla, "▲ Escalera [E]", sx, sy - 22,
+                               self.hud.f_pequena, (150, 230, 150), centro=True)
 
     def _rombo(self, gx, gy, cx, cy, dz=0):
         n = mundo_a_pantalla(gx, gy, self.cam_x, self.cam_y, cx, cy)
@@ -596,9 +642,10 @@ class Juego:
 
     def _bloque(self, planta, gx, gy, cx, cy, t) -> None:
         if t == C.MURO:
-            altura, base = C.ALTURA_MURO, C.GRIS_PIEDRA
-            if planta.zona(gx, gy) == "biblioteca":
-                base = (96, 78, 60)
+            altura = C.ALTURA_MURO
+            # Muros teñidos con el color de su estancia: ayuda a distinguirlas.
+            zc = C.COLORES_ZONA.get(planta.zona(gx, gy), C.COLORES_ZONA["claustro"])[0]
+            base = tuple(int(g * 0.55 + z * 0.45) for g, z in zip(C.GRIS_PIEDRA, zc))
         elif t == C.ALTAR:
             altura, base = 24, C.ORO
         elif t == C.ESPEJO:

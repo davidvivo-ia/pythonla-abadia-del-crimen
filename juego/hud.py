@@ -50,9 +50,10 @@ class HUD:
         sup.blit(panel, (0, C.ALTO - alto))
         y = C.ALTO - alto + 12
 
-        # Reloj + planta (abajo-izquierda)
+        # Reloj + ubicación (abajo-izquierda)
         self.texto(sup, juego.reloj.hora_texto(), 20, y, self.f_grande, C.ORO_CLARO)
-        self.texto(sup, C.NOMBRE_PLANTA[juego.guillermo.planta], 20, y + 38,
+        self.texto(sup, f"{C.NOMBRE_PLANTA[juego.guillermo.planta]} · "
+                        f"Estás en: {juego.estancia_actual_nombre()}", 20, y + 38,
                    self.f_pequena, C.PERGAMINO_2)
         prog = int(juego.reloj.progreso * 200)
         pygame.draw.rect(sup, C.GRIS_OSCURO, (20, y + 58, 200, 6))
@@ -109,8 +110,20 @@ class HUD:
                     else:
                         col = (150, 140, 120)
                     base.fill(col, (4 + gx * escala, 4 + gy * escala, escala, escala))
+            # Abreviaturas de cada estancia sobre su centro.
+            for clave, e in planta.estancias.items():
+                cxm, cym = e.centro
+                img = self.f_pequena.render(C.NOMBRE_CORTO.get(clave, "?"), True, C.BLANCO)
+                base.blit(img, (4 + cxm * escala - img.get_width() // 2,
+                                4 + cym * escala - img.get_height() // 2))
             self._cache_minimapa[id(planta)] = base
         sup.blit(base, (mx - 4, my - 4))
+        # Resalta la estancia en la que está Guillermo.
+        actual = planta.estancia_de(*juego.guillermo.tile)
+        if actual:
+            e = planta.estancias[actual]
+            pygame.draw.rect(sup, C.ORO_CLARO, (mx + e.x * escala, my + e.y * escala,
+                                                e.w * escala, e.h * escala), 1)
         for obj in juego.objetos.values():
             if obj.en_suelo and obj.planta == juego.guillermo.planta:
                 sup.fill(C.ORO_CLARO, (mx + obj.gx * escala - 1, my + obj.gy * escala - 1, 3, 3))

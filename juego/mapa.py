@@ -115,9 +115,54 @@ class Mapa:
         # Escaleras: (planta, gx, gy) -> (planta_destino, gx, gy)
         self.escaleras: dict[tuple[int, int, int], tuple[int, int, int]] = {}
         self._conectar_escaleras()
+        self._verificar_conexidad()
 
     def planta(self, i: int) -> Planta:
         return self.plantas[i]
+
+    # ------------------------------------------------------------------ #
+    def _verificar_conexidad(self) -> None:
+        """Garantiza que todo punto clave es alcanzable andando desde su escalera.
+
+        Un decorado o tabique mal colocado puede sellar una estancia sin que
+        nada falle en apariencia; esta comprobación convierte ese error
+        silencioso en una excepción clara al arrancar.
+        """
+        requisitos = {
+            C.PLANTA_BAJA: ((20, 34), ["iglesia", "claustro", "refectorio", "cocina",
+                                       "capitular", "enfermeria", "celda_abad", "celdas",
+                                       "celda_guillermo", "cripta", "entrada", "altar"]),
+            C.PLANTA_SCRIPTORIUM: ((4, 4), ["scriptorium", "mesa_pergamino", "mesa_libro",
+                                            "mesa_malaquias"]),
+            C.PLANTA_BIBLIOTECA: ((4, 4), ["biblioteca", "espejo", "entrada_espejo",
+                                           "sala_iluminada"]),
+        }
+        fallos = []
+        for idx, (origen, anclas) in requisitos.items():
+            p = self.plantas[idx]
+            alcanzables = self._bfs(p, origen)
+            for clave in anclas:
+                gx, gy = p.anclas[clave]
+                if (int(gx), int(gy)) not in alcanzables:
+                    fallos.append(f"{C.NOMBRE_PLANTA[idx]}:{clave}")
+            for (pl, gx, gy) in self.escaleras:
+                if pl == idx and (gx, gy) not in alcanzables:
+                    fallos.append(f"{C.NOMBRE_PLANTA[idx]}:escalera({gx},{gy})")
+        if fallos:
+            raise RuntimeError("Mapa inconexo; puntos inalcanzables: " + ", ".join(fallos))
+
+    @staticmethod
+    def _bfs(p: Planta, origen: tuple[int, int]) -> set[tuple[int, int]]:
+        vistos = {origen}
+        cola = [origen]
+        while cola:
+            x, y = cola.pop()
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                n = (x + dx, y + dy)
+                if n not in vistos and p.transitable(*n):
+                    vistos.add(n)
+                    cola.append(n)
+        return vistos
 
     # ------------------------------------------------------------------ #
     def _construir_baja(self) -> Planta:
@@ -196,14 +241,17 @@ class Mapa:
         for gx, gy in [(6, 8), (11, 6), (13, 9), (8, 12), (16, 14),
                        (20, 10), (14, 16), (23, 12), (18, 18)]:
             p.poner(gx, gy, C.SUELO)
-        # Sala del espejo (esquina) y sala iluminada
+        # Sala del espejo (esquina) y sala iluminada.
+        # El espejo decora la pared norte; la entrada es LATERAL para que el
+        # decorado (no transitable) nunca bloquee la única puerta.
         p.add_estancia(Estancia("sala_espejo", "espejo", 22, 18, 6, 6))
         esp = p.estancias["sala_espejo"]
         p.poner(esp.x + esp.w // 2, esp.y + 1, C.ESPEJO)
-        p.anclas["espejo"] = (esp.x + esp.w // 2, esp.y + 2)
+        p.anclas["espejo"] = (esp.x + esp.w // 2, esp.y + 2)        # punto de interacción
+        p.anclas["entrada_espejo"] = (esp.x + 1, esp.y + 3)         # acceso lateral
         p.add_estancia(Estancia("sala_iluminada", "espejo", 2, 18, 6, 6))
         p.anclas["sala_iluminada"] = p.estancias["sala_iluminada"].centro
-        p.pasillo(p.anclas["biblioteca"], p.anclas["espejo"], "biblioteca")
+        p.pasillo(p.anclas["biblioteca"], p.anclas["entrada_espejo"], "biblioteca")
         p.pasillo(p.anclas["biblioteca"], p.anclas["sala_iluminada"], "biblioteca")
         # La sala del espejo y la iluminada tienen luz propia (fría/dorada).
         p.add_luz(esp.x + esp.w // 2, esp.y + 2, (150, 190, 255), 150)

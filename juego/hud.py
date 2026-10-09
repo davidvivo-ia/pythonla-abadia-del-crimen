@@ -13,6 +13,7 @@ class HUD:
         self.f_media = self._fuente(19)
         self.f_pequena = self._fuente(14)
         self.f_titulo = self._fuente(60)
+        self._cache_minimapa: dict[int, pygame.Surface] = {}
 
     @staticmethod
     def _fuente(tam):
@@ -86,25 +87,30 @@ class HUD:
         escala = 4
         mw, mh = planta.ancho * escala, planta.alto * escala
         mx, my = C.ANCHO - mw - 16, 16
-        fondo = pygame.Surface((mw + 8, mh + 8), pygame.SRCALPHA)
-        fondo.fill((10, 8, 6, 190))
-        sup.blit(fondo, (mx - 4, my - 4))
-        for gy in range(planta.alto):
-            for gx in range(planta.ancho):
-                t = planta.tiles[gy][gx]
-                if t == C.VACIO:
-                    continue
-                if t == C.MURO or t == C.MESA:
-                    col = (70, 64, 58)
-                elif t == C.PUERTA:
-                    col = C.ORO
-                elif t == C.ESCALERA:
-                    col = (120, 200, 120)
-                elif t == C.ESPEJO:
-                    col = (180, 160, 200)
-                else:
-                    col = (150, 140, 120)
-                sup.fill(col, (mx + gx * escala, my + gy * escala, escala, escala))
+        # La parte estática (muros, puertas, escaleras) se dibuja una vez por
+        # planta y se cachea: evita ~2000 rellenos por frame.
+        base = self._cache_minimapa.get(id(planta))
+        if base is None:
+            base = pygame.Surface((mw + 8, mh + 8), pygame.SRCALPHA)
+            base.fill((10, 8, 6, 190))
+            for gy in range(planta.alto):
+                for gx in range(planta.ancho):
+                    t = planta.tiles[gy][gx]
+                    if t == C.VACIO:
+                        continue
+                    if t == C.MURO or t == C.MESA:
+                        col = (70, 64, 58)
+                    elif t == C.PUERTA:
+                        col = C.ORO
+                    elif t == C.ESCALERA:
+                        col = (120, 200, 120)
+                    elif t == C.ESPEJO:
+                        col = (180, 160, 200)
+                    else:
+                        col = (150, 140, 120)
+                    base.fill(col, (4 + gx * escala, 4 + gy * escala, escala, escala))
+            self._cache_minimapa[id(planta)] = base
+        sup.blit(base, (mx - 4, my - 4))
         for obj in juego.objetos.values():
             if obj.en_suelo and obj.planta == juego.guillermo.planta:
                 sup.fill(C.ORO_CLARO, (mx + obj.gx * escala - 1, my + obj.gy * escala - 1, 3, 3))

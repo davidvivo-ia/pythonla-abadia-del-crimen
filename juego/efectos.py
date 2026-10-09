@@ -51,14 +51,22 @@ class PostFX:
 
     def _crear_grano(self):
         # Grano fílmico sutil: se suma (BLEND_RGB_ADD ignora set_alpha), por eso
-        # el rango de valores se mantiene bajo.
-        base = pygame.Surface((self.ancho // 3, self.alto // 3))
-        pa = pygame.PixelArray(base)
-        for y in range(base.get_height()):
-            for x in range(base.get_width()):
-                v = self.rng.randint(0, 16)
-                pa[x, y] = (v, v, v)
-        del pa
+        # el rango de valores se mantiene bajo. Con numpy se genera al instante;
+        # sin él, se recurre a PixelArray (más lento, sólo al arrancar).
+        w, h = self.ancho // 3, self.alto // 3
+        try:
+            import numpy as np
+            ruido = np.random.default_rng(self.rng.randrange(1 << 30)).integers(
+                0, 17, size=(w, h), dtype=np.uint8)
+            base = pygame.surfarray.make_surface(np.stack([ruido] * 3, axis=-1))
+        except Exception:
+            base = pygame.Surface((w, h))
+            pa = pygame.PixelArray(base)
+            for y in range(h):
+                for x in range(w):
+                    v = self.rng.randint(0, 16)
+                    pa[x, y] = (v, v, v)
+            del pa
         return pygame.transform.smoothscale(base, (self.ancho, self.alto))
 
     # -- aplicación --------------------------------------------------------- #
@@ -124,7 +132,7 @@ class Particulas:
                 self.items.append(Particula(
                     x, y, z + self.rng.uniform(4, 26), self.rng.uniform(-0.12, 0.12),
                     self.rng.uniform(-0.12, 0.12), self.rng.uniform(2, 8),
-                    self.rng.uniform(2.5, 5.0), (230, 210, 165),
+                    self.rng.uniform(9.0, 18.0), (230, 210, 165),
                     self.rng.uniform(1, 2.2), tipo))
             elif tipo == "pisada":
                 self.items.append(Particula(

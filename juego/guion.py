@@ -54,8 +54,10 @@ def _prima(j, dia, O, M) -> None:
         j.mensaje("Tus gafas han desaparecido.", 5)
         _anuncio(j, "El Abad", 0x16)          # la biblioteca es secreta
     elif dia == 3:
-        # Jorge esconde el libro; aparece en planta baja.
+        # Jorge se lleva el libro (aunque lo tuviera Guillermo) y aparece en
+        # la planta baja para ser presentado por el Abad.
         O["libro"].oculto = True
+        O["libro"].portador = None
         M["jorge"].teleport(C.PLANTA_BAJA, *_tile(j, C.PLANTA_BAJA, "claustro"))
         M["jorge"].activo = True
         if O["pergamino"].portador != "guillermo":
@@ -71,10 +73,11 @@ def _tercia(j, dia, O, M) -> None:
     if dia == 3:
         _anuncio(j, "El Abad", 0x30)          # presenta a Jorge
     elif dia == 5:
-        # Malaquías mata a Severino y luego muere.
+        # Malaquías mata a Severino y luego muere envenenado por el libro.
         M["severino"].vivo = False
         M["malaquias"].vivo = False
-        j.mensaje(f"Severino: (nada)  —  {frases.frase(0x1C)}", 6)
+        _anuncio(j, "El Abad", 0x1C)          # Severino asesinado y encerrado
+        _anuncio(j, "Malaquías", 0x1F)        # "tenía el poder de mil escorpiones"
         _anuncio(j, "El Abad", 0x20)          # Malaquías ha muerto
 
 

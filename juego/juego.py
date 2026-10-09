@@ -47,6 +47,10 @@ class Juego:
         self._dt = 0.016
         self._glow_cache: dict = {}
         self._mask_cache: dict = {}
+        # Superficies reutilizadas cada frame (evitan reservas de memoria).
+        self._sombra = pygame.Surface((30, 14), pygame.SRCALPHA)
+        pygame.draw.ellipse(self._sombra, (0, 0, 0, 90), self._sombra.get_rect())
+        self._oscuridad = pygame.Surface((C.ANCHO, C.ALTO), pygame.SRCALPHA)
         self._nuevo_mundo()
 
     # ------------------------------------------------------------------ #
@@ -249,7 +253,10 @@ class Juego:
                 self.pista(f"Objeto hallado: {obj.nombre}.")
                 self.particulas.emitir(obj.gx + 0.5, obj.gy + 0.5, "chispa", 14, z=8)
                 self._bonus_objeto(obj.clave)
-                if obj.clave == "gafas" and self.tiene("pergamino"):
+                # El enigma se revela en cuanto se reúnen gafas y pergamino,
+                # sea cual sea el orden en que se recojan.
+                if obj.clave in ("gafas", "pergamino") and self.tiene("gafas") \
+                        and self.tiene("pergamino"):
                     self.mensaje(f"El pergamino revela: «{self._enigma()}»", 7)
                     self.pista(f"Enigma del espejo: {self._enigma()}")
 
@@ -277,8 +284,9 @@ class Juego:
                 if self.aceite == 0:
                     self.mensaje(f"Adso: «{frases.frase(0x2A)}»", 4)   # se ha agotado
         else:
+            antes = self.cnt_oscuras
             self.cnt_oscuras += dt
-            if 1.0 < self.cnt_oscuras < 1.2:
+            if antes <= 1.0 < self.cnt_oscuras:               # aviso una sola vez
                 self.mensaje(f"Adso: «{frases.frase(0x13)}»", 4)
             if self.cnt_oscuras > 12.0:
                 self._fin(f"Adso: «{frases.frase(0x2B)}»")
@@ -327,8 +335,10 @@ class Juego:
             planta, gx, gy = esc
             g.planta = planta
             g.x, g.y = gx + 0.5, gy + 0.5
+            # Adso aparece sobre la misma escalera (siempre transitable) y se
+            # separa solo al seguir a Guillermo; así nunca nace dentro de un muro.
             self.adso.planta = planta
-            self.adso.x, self.adso.y = gx + 0.5, gy + 1.5
+            self.adso.x, self.adso.y = g.x, g.y
             self.cam_x, self.cam_y = foco_camara(g.x, g.y)
             self.cd_escalera = COOLDOWN_ESCALERA
             self.mensaje(f"Entras en: {C.NOMBRE_PLANTA[planta]}.", 3)
@@ -404,7 +414,11 @@ class Juego:
     # ================================================================== #
     def _render(self) -> None:
         if self.estado != self._estado_prev:
-            self.fade = 1.0                      # crossfade al cambiar de estado
+            # Crossfade sólo en cambios "de pantalla"; abrir o cerrar un overlay
+            # (pausa, diálogo) sobre el juego no funde a negro.
+            en_juego = {JUGANDO, PAUSA, DIALOGO}
+            if not (self.estado in en_juego and self._estado_prev in en_juego):
+                self.fade = 1.0
             self._estado_prev = self.estado
 
         if self.estado == MENU:
@@ -412,6 +426,7 @@ class Juego:
             self._filmico_ligero()
         elif self.estado == AYUDA:
             self._render_ayuda()
+            self._filmico_ligero()
         elif self.estado == INTRO:
             self._render_texto(frases.INTRO, "LA ABADÍA DEL CRIMEN")
             self._filmico_ligero()
@@ -614,9 +629,7 @@ class Juego:
     def _entidad(self, ent, cx, cy) -> None:
         sx, sy = mundo_a_pantalla(ent.x, ent.y, self.cam_x, self.cam_y, cx, cy)
         bob = math.sin(ent.paso) * 2.0 if ent.velocidad > 0 else 0.0
-        sombra = pygame.Surface((30, 14), pygame.SRCALPHA)
-        pygame.draw.ellipse(sombra, (0, 0, 0, 90), sombra.get_rect())
-        self.pantalla.blit(sombra, (sx - 15, sy - 6))
+        self.pantalla.blit(self._sombra, (sx - 15, sy - 6))
         base_y = sy - int(bob)
         top_y = base_y - 30
         cuerpo = [(sx - 11, base_y), (sx + 11, base_y), (sx + 7, top_y + 6), (sx - 7, top_y + 6)]
@@ -677,7 +690,7 @@ class Juego:
             return
 
         # 2) Oscuridad con "agujeros" de luz (jugador + antorchas).
-        oscuridad = pygame.Surface((C.ANCHO, C.ALTO), pygame.SRCALPHA)
+        oscuridad = self._oscuridad
         oscuridad.fill((6, 8, 20, int(238 * osc)))
         gx, gy = mundo_a_pantalla(self.guillermo.x, self.guillermo.y, self.cam_x, self.cam_y, cx, cy)
         radio_j = 210 if con_lampara else 130

@@ -23,19 +23,41 @@ class Codex:
 
     # ------------------------------------------------------------------ #
     def objetivo(self, juego) -> str:
-        """Texto del objetivo vigente según el progreso."""
+        """Texto del objetivo vigente según el horario y el progreso."""
         tiene = juego.tiene
         if juego.clima_resuelto:
             return "El misterio ha concluido."
-        faltan = [n for k, n in (("guantes", "guantes"), ("gafas", "gafas"),
-                                 ("pergamino", "el pergamino")) if not tiene(k)]
+
+        # 1) Obligación horaria en curso: es lo que cuesta obsequium.
+        m = juego.reloj.momento
+        if m in C.MOMENTO_IGLESIA:
+            return f"{juego.reloj.nombre}: acude a la iglesia antes de que acabe."
+        if m in C.MOMENTO_REFECTORIO:
+            return "Sexta: ocupa tu sitio en el refectorio."
+        if m in C.MOMENTO_CELDA:
+            return f"{juego.reloj.nombre}: retírate a tu celda a dormir."
+
+        # 2) Tiempo libre: progreso de la investigación.
+        faltan = []
+        if not tiene("guantes"):
+            faltan.append("los guantes (enfermería)")
+        if not tiene("pergamino"):
+            faltan.append("el pergamino (scriptorium)")
+        if not tiene("gafas"):
+            if juego.objetos["gafas"].oculto:
+                faltan.append("las gafas (reaparecen en la biblioteca el 5º día)")
+            else:
+                faltan.append("las gafas")
         if faltan:
-            return "Reúne " + ", ".join(faltan) + " por la abadía."
-        if juego.guillermo.planta != C.PLANTA_BIBLIOTECA:
-            return "Sube por las escaleras hasta la biblioteca."
+            lista = ", ".join(faltan[:-1]) + (" y " if len(faltan) > 1 else "") + faltan[-1]
+            return "Tiempo libre: consigue " + lista + "."
+        if juego.objetos["lampara"].portador != "adso":
+            return "Haz que Adso recoja la lámpara (cocina) para entrar en la biblioteca."
         if juego.reloj.dia < 6:
-            return "Investiga; Jorge aguardará tras el espejo el 6º día."
-        return "Enfréntate a Jorge en el espejo (¡lleva los guantes!)."
+            return "Todo listo: Jorge aguardará tras el espejo desde el 6º día."
+        if juego.guillermo.planta != C.PLANTA_BIBLIOTECA:
+            return "Sube a la biblioteca y busca la sala del espejo."
+        return "Enfréntate a Jorge en el espejo: ¡no te quites los guantes!"
 
     def to_dict(self):
         return {"pistas": self.pistas, "vistas": list(self._vistas)}

@@ -37,6 +37,7 @@ Requiere **Python 3.10+**. (`numpy` es opcional: activa las campanas.)
 | Mover a Guillermo | Flechas o `W A S D` |
 | Controlar a Adso | mantén `CTRL` + mover |
 | Acción (hablar / subir escaleras / espejo) | `E` |
+| Responder al enigma del espejo | `1` / `2` / `3` |
 | Códice de pistas | `J` |
 | Efectos visuales on/off | `F` |
 | Pausa | `ESC` / `P` |
@@ -56,9 +57,12 @@ Eres **Fray Guillermo de Occam**; **Adso** te acompaña. Durante **siete días**
 2. Reúne **guantes**, **gafas** y el **pergamino** de Venancio, y sube por las
    escaleras al **scriptorium** y a la **biblioteca** (necesitas la **lámpara**
    de Adso para no perderte en la oscuridad).
-3. Resuelve el **enigma del espejo** y llega ante **Jorge de Burgos** el 6.º/7.º
-   día. Con los **guantes** sobrevivirás al **libro envenenado** (el *Coena
-   Cipriani* de Aristóteles) y resolverás el misterio.
+3. Resuelve el **enigma del espejo**: ante él, teclea el número romano que te
+   reveló el pergamino (queda anotado en el códice); fallar es la trampa mortal
+   del original. Llega así ante **Jorge de Burgos** el 6.º/7.º día: con los
+   **guantes** sobrevivirás al **libro envenenado** (el *Coena Cipriani* de
+   Aristóteles) y resolverás el misterio. Cuidado con **Bernardo Gui** (días
+   4-5): si te alcanza con el manuscrito, te lo arrebata.
 
 ## 📂 Estructura
 

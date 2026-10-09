@@ -51,7 +51,7 @@ def construir_objetos(mapa) -> dict[str, Objeto]:
         "llave1": Objeto("llave1", "Llave del altar", "1", C.OBJ_LLAVE1, oculto=True),
         "llave2": Objeto("llave2", "Llave de Malaquías", "2", C.OBJ_LLAVE2, oculto=True),
         "llave3": Objeto("llave3", "Llave del pasadizo", "3", C.OBJ_LLAVE3,
-                         portador="adso"),
+                         C.PLANTA_SCRIPTORIUM, scr.anclas["llave3"]),
         "lampara": Objeto("lampara", "Lámpara de aceite", "F", C.OBJ_LAMPARA, oculto=True),
     }
     return objs

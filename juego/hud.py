@@ -13,7 +13,6 @@ class HUD:
         self.f_media = self._fuente(19)
         self.f_pequena = self._fuente(14)
         self.f_titulo = self._fuente(60)
-        self._cache_minimapa: dict[int, pygame.Surface] = {}
 
     @staticmethod
     def _fuente(tam):
@@ -89,8 +88,8 @@ class HUD:
         mw, mh = planta.ancho * escala, planta.alto * escala
         mx, my = C.ANCHO - mw - 16, 16
         # La parte estática (muros, puertas, escaleras) se dibuja una vez por
-        # planta y se cachea: evita ~2000 rellenos por frame.
-        base = self._cache_minimapa.get(id(planta))
+        # planta y se guarda en la propia planta: evita ~2000 rellenos por frame.
+        base = planta.cache_minimapa
         if base is None:
             base = pygame.Surface((mw + 8, mh + 8), pygame.SRCALPHA)
             base.fill((10, 8, 6, 190))
@@ -116,7 +115,7 @@ class HUD:
                 img = self.f_pequena.render(C.NOMBRE_CORTO.get(clave, "?"), True, C.BLANCO)
                 base.blit(img, (4 + cxm * escala - img.get_width() // 2,
                                 4 + cym * escala - img.get_height() // 2))
-            self._cache_minimapa[id(planta)] = base
+            planta.cache_minimapa = base
         sup.blit(base, (mx - 4, my - 4))
         # Resalta la estancia en la que está Guillermo.
         actual = planta.estancia_de(*juego.guillermo.tile)
@@ -134,15 +133,35 @@ class HUD:
         sup.fill(C.BLANCO, (mx + int(g.x) * escala - 1, my + int(g.y) * escala - 1, 4, 4))
 
     def _mensajes(self, sup, juego) -> None:
+        """Mensajes flotantes; los largos se parten en líneas (nunca se escalan)."""
         y = 118
+        max_w = C.ANCHO - 340
         for msg, t in juego.mensajes:
             alpha = min(255, int(t * 140))
-            s = self.f_media.render(msg, True, C.PERGAMINO)
-            s.set_alpha(alpha)
-            if s.get_width() > C.ANCHO - 340:
-                s = pygame.transform.smoothscale(s, (C.ANCHO - 340, s.get_height()))
-            fondo = pygame.Surface((s.get_width() + 24, s.get_height() + 10), pygame.SRCALPHA)
+            lineas = self._partir(msg, self.f_media, max_w)
+            imgs = [self.f_media.render(ln, True, C.PERGAMINO) for ln in lineas]
+            w = max(i.get_width() for i in imgs) + 24
+            h = sum(i.get_height() for i in imgs) + 10
+            fondo = pygame.Surface((w, h), pygame.SRCALPHA)
             fondo.fill((20, 16, 12, min(200, alpha)))
-            sup.blit(fondo, (C.ANCHO // 2 - fondo.get_width() // 2, y))
-            sup.blit(s, (C.ANCHO // 2 - s.get_width() // 2, y + 5))
-            y += 40
+            sup.blit(fondo, (C.ANCHO // 2 - w // 2, y))
+            yy = y + 5
+            for img in imgs:
+                img.set_alpha(alpha)
+                sup.blit(img, (C.ANCHO // 2 - img.get_width() // 2, yy))
+                yy += img.get_height()
+            y += h + 6
+
+    @staticmethod
+    def _partir(texto, fuente, max_w):
+        lineas, actual = [], ""
+        for palabra in texto.split():
+            prueba = (actual + " " + palabra).strip()
+            if fuente.size(prueba)[0] <= max_w or not actual:
+                actual = prueba
+            else:
+                lineas.append(actual)
+                actual = palabra
+        if actual:
+            lineas.append(actual)
+        return lineas or [""]

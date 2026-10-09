@@ -45,28 +45,27 @@ def _prima(j, dia, O, M) -> None:
             cocina = j.mapa.planta(C.PLANTA_BAJA).anclas["cocina"]
             O["lampara"].colocar(C.PLANTA_BAJA, *cocina)
 
-    if dia == 1:
-        _anuncio(j, "El Abad", 0x15)          # Venancio asesinado
-    elif dia == 2:
+    if dia == 2:
         # Desaparecen las gafas.
         O["gafas"].oculto = True
         O["gafas"].portador = None
         j.mensaje("Tus gafas han desaparecido.", 5)
         _anuncio(j, "El Abad", 0x16)          # la biblioteca es secreta
     elif dia == 3:
-        # Jorge se lleva el libro (aunque lo tuviera Guillermo) y aparece en
-        # la planta baja para ser presentado por el Abad.
+        # Berengario aparece asesinado; Jorge se lleva el libro (aunque lo
+        # tuviera Guillermo) y aparece en la planta baja para ser presentado.
+        M["berengario"].vivo = False
         O["libro"].oculto = True
         O["libro"].portador = None
-        M["jorge"].teleport(C.PLANTA_BAJA, *_tile(j, C.PLANTA_BAJA, "claustro"))
+        M["jorge"].teleport(C.PLANTA_BAJA, *_tile(j, C.PLANTA_BAJA, "claustro"), home="claustro")
         M["jorge"].activo = True
         if O["pergamino"].portador != "guillermo":
             lib = j.mapa.planta(C.PLANTA_BIBLIOTECA).anclas["sala_iluminada"]
             O["pergamino"].colocar(C.PLANTA_BIBLIOTECA, *lib)
+            j.mensaje("El manuscrito de Venancio ha sido llevado a la biblioteca.", 5)
         _anuncio(j, "El Abad", 0x1A)          # Berengario asesinado
     elif dia == 5:
-        if O["llave1"].portador != "guillermo":
-            O["llave1"].oculto = True
+        pass                                  # (la llave 1 se oculta en Sexta)
 
 
 def _tercia(j, dia, O, M) -> None:
@@ -87,17 +86,21 @@ def _sexta(j, dia, O, M) -> None:
         M["bernardo"].activo = True
         M["bernardo"].teleport(C.PLANTA_BAJA, *_tile(j, C.PLANTA_BAJA, "entrada"))
         _anuncio(j, "El Abad", 0x11)          # abandonad la investigación
+    elif dia == 5:
+        # La llave del altar se retira si nadie la ha cogido (ventana: Noche→Sexta).
+        if O["llave1"].en_suelo:
+            O["llave1"].oculto = True
 
 
 def _nona(j, dia, O, M) -> None:
     if dia == 3:
         M["jorge"].activo = False             # Jorge desaparece
-    if dia == 1:
-        _anuncio(j, "El Abad", 0x03)          # recuerda las normas
 
 
 def _visperas(j, dia, O, M) -> None:
-    if dia == 5:
+    if dia == 2:
+        _anuncio(j, "El Abad", 0x18)          # Berengario ha desaparecido
+    elif dia == 5:
         M["bernardo"].activo = False
         _anuncio(j, "El Abad", 0x1D)          # Bernardo se marcha
 
@@ -108,12 +111,16 @@ def _noche(j, dia, O, M) -> None:
         if O["gafas"].portador is None:
             lib = j.mapa.planta(C.PLANTA_BIBLIOTECA).anclas["sala_iluminada"]
             O["gafas"].colocar(C.PLANTA_BIBLIOTECA, *lib)
+            j.mensaje("Tus gafas han aparecido en la sala iluminada de la biblioteca.", 6)
         altar = j.mapa.planta(C.PLANTA_BAJA).anclas["altar"]
         O["llave1"].colocar(C.PLANTA_BAJA, *altar)
+        j.mensaje("Una llave brilla sobre el altar de la iglesia (hasta Sexta).", 6)
     elif dia == 6:
         mm = j.mapa.planta(C.PLANTA_SCRIPTORIUM).anclas["mesa_malaquias"]
         O["llave2"].colocar(C.PLANTA_SCRIPTORIUM, *mm)
-        M["jorge"].teleport(C.PLANTA_BIBLIOTECA, *_tile(j, C.PLANTA_BIBLIOTECA, "espejo"))
+        j.mensaje("Una llave ha quedado sobre la mesa de Malaquías (scriptorium).", 6)
+        M["jorge"].teleport(C.PLANTA_BIBLIOTECA, *_tile(j, C.PLANTA_BIBLIOTECA, "espejo"),
+                            home="sala_espejo")
         M["jorge"].activo = True
         _anuncio(j, "El Abad", 0x1E)          # mañana abandonaréis
 

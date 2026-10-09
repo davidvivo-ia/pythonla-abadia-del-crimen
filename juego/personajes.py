@@ -23,14 +23,16 @@ class Entidad:
         self.paso = 0.0
 
     def _mover(self, planta, dx, dy) -> None:
+        x0, y0 = self.x, self.y
         if dx and planta.transitable_punto(self.x + dx, self.y):
             self.x += dx
         if dy and planta.transitable_punto(self.x, self.y + dy):
             self.y += dy
-        mag = math.hypot(dx, dy)
+        # La velocidad refleja el desplazamiento REAL (contra un muro = 0).
+        mag = math.hypot(self.x - x0, self.y - y0)
         self.velocidad = mag
         if mag > 1e-4:
-            self.dir_x, self.dir_y = dx / mag, dy / mag
+            self.dir_x, self.dir_y = (self.x - x0) / mag, (self.y - y0) / mag
             self.paso += mag * 8.0
 
     @property
@@ -82,15 +84,23 @@ class Adso(Entidad):
 class Monje(Entidad):
     """Monje con IA: se dirige a la estancia que le toca según la hora."""
 
-    def __init__(self, x, y, planta, color, nombre, home, frase_base="") -> None:
+    def __init__(self, x, y, planta, color, nombre, home, frases=()) -> None:
         super().__init__(x, y, planta, color, nombre)
         self.home = home              # ancla de su celda/zona
-        self.frase_base = frase_base
+        self.frases = list(frases) or [""]
+        self.frase_base = self.frases[0]
+        self._i_frase = 0
         self.vivo = True
         self.activo = True
         self.ruta: list[tuple[int, int]] = []
         self.objetivo_ancla = home
         self.espera = 0.0
+
+    def frase(self) -> str:
+        """Siguiente frase del monje (van rotando para no repetirse)."""
+        f = self.frases[self._i_frase % len(self.frases)]
+        self._i_frase += 1
+        return f
 
     # ------------------------------------------------------------------ #
     def objetivo_para(self, reloj) -> str:
@@ -149,25 +159,38 @@ class Monje(Entidad):
                 if self.ruta:
                     return
 
-    def teleport(self, planta, gx, gy) -> None:
+    def teleport(self, planta, gx, gy, home=None) -> None:
         self.planta = planta
         self.x, self.y = gx + 0.5, gy + 0.5
         self.ruta = []
+        if home is not None:            # nueva zona de deambulación
+            self.home = home
+            self.objetivo_ancla = home
 
 
 # Definición de los monjes (además de Guillermo y Adso).
-#   clave, nombre, color, planta inicial, ancla home, frase de presentación
+#   clave, nombre, color, planta inicial, ancla home, frases (rotan al hablar)
 DEF_MONJES = [
-    ("abad",       "Abad",       (60, 50, 90),  C.PLANTA_BAJA, "iglesia",
-     "BIENVENIDO A ESTA ABADIA, HERMANO."),
-    ("severino",   "Severino",   (60, 90, 80),  C.PLANTA_BAJA, "enfermeria",
-     "SOY SEVERINO, EL ENCARGADO DEL HOSPITAL."),
-    ("malaquias",  "Malaquías",  (70, 60, 50),  C.PLANTA_SCRIPTORIUM, "scriptorium",
-     "LA BIBLIOTECA ES UN LUGAR SECRETO."),
-    ("berengario", "Berengario", (90, 70, 60),  C.PLANTA_SCRIPTORIUM, "scriptorium",
-     "AQUI TRABAJAN LOS MEJORES COPISTAS DE OCCIDENTE."),
-    ("jorge",      "Jorge",      (40, 38, 34),  C.PLANTA_BIBLIOTECA, "sala_espejo",
-     "LAS VIAS DEL ANTICRISTO SON LENTAS Y TORTUOSAS."),
-    ("bernardo",   "Bernardo Gui", (110, 40, 40), C.PLANTA_BAJA, "claustro",
-     "LA INQUISICION TODO LO VE."),
+    ("abad",       "Abad",       (60, 50, 90),  C.PLANTA_BAJA, "iglesia", (
+        "BIENVENIDO A ESTA ABADIA, HERMANO.",
+        "DEBEIS RESPETAR MIS ORDENES Y LAS DE LA ABADIA. ASISTIR A LOS OFICIOS Y A LA COMIDA.",
+        "DE NOCHE DEBEIS ESTAR EN VUESTRA CELDA.")),
+    ("severino",   "Severino",   (60, 90, 80),  C.PLANTA_BAJA, "enfermeria", (
+        "VENERABLE HERMANO, SOY SEVERINO, EL ENCARGADO DEL HOSPITAL.",
+        "EN ESTA ABADIA SUCEDEN COSAS MUY EXTRAÑAS. ALGUIEN NO QUIERE QUE LOS MONJES DECIDAN POR SI SOLOS LO QUE DEBEN SABER.",
+        "ESCUCHAD HERMANO, HE ENCONTRADO UN EXTRAÑO LIBRO EN MI CELDA.")),
+    ("malaquias",  "Malaquías",  (70, 60, 50),  C.PLANTA_SCRIPTORIUM, "scriptorium", (
+        "LO SIENTO, VENERABLE HERMANO, NO PODEIS SUBIR A LA BIBLIOTECA.",
+        "SI LO DESEAIS, BERENGARIO OS MOSTRARA EL SCRIPTORIUM.",
+        "DEBEIS ABANDONAR EL EDIFICIO, HERMANO.")),
+    ("berengario", "Berengario", (90, 70, 60),  C.PLANTA_SCRIPTORIUM, "scriptorium", (
+        "AQUI TRABAJAN LOS MEJORES COPISTAS DE OCCIDENTE.",
+        "AQUI TRABAJABA VENANCIO.",
+        "DEJAD EL MANUSCRITO DE VENANCIO O ADVERTIRE AL ABAD.")),
+    ("jorge",      "Jorge",      (40, 38, 34),  C.PLANTA_BIBLIOTECA, "sala_espejo", (
+        "SED BIENVENIDO, VENERABLE HERMANO; Y ESCUCHAD LO QUE OS DIGO.",
+        "LAS VIAS DEL ANTICRISTO SON LENTAS Y TORTUOSAS. NO DESPERDICIEIS LOS ULTIMOS DIAS.")),
+    ("bernardo",   "Bernardo Gui", (110, 40, 40), C.PLANTA_BAJA, "claustro", (
+        "HA LLEGADO BERNARDO, DEBEIS ABANDONAR LA INVESTIGACION.",
+        "DADME EL MANUSCRITO, FRAY GUILLERMO.")),
 ]

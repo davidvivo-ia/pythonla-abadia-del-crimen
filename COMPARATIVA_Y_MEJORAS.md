@@ -79,3 +79,28 @@ técnico en `ABADIA_DISENO.md`, sección 11-bis):
   (`codex.py`, tecla `J`) que registra las pistas.
 - Todo en pygame puro y cacheado: se mantiene por encima de 60 FPS, con un
   interruptor (`F`) para desactivar el post-procesado en equipos modestos.
+
+## Versión 3.1 — auditoría adversarial (dos revisores independientes)
+
+Una revisión línea a línea más un revisor independiente sin acceso a las
+conclusiones del primero produjeron 24 hallazgos; los reales se corrigieron:
+
+- **Jugabilidad**: la sala del espejo estaba sellada por su propio decorado
+  (juego inganable andando) → entrada lateral y **verificación automática de
+  conexidad** al construir el mapa; la lámpara no recargaba aceite (soft-lock)
+  → se repone al amanecer; aviso al entrar en la biblioteca sin lámpara.
+- **Narrativa**: los diálogos del clímax nunca se mostraban → **escena de
+  diálogos encadenados**; los eventos del día 1 eran código muerto → se lanzan
+  al salir de la intro; Berengario seguía vivo tras su asesinato; el enigma del
+  espejo no se resolvía → ahora hay que **teclear el número romano** (1/2/3) y
+  fallar es la trampa; **Bernardo Gui arrebata el manuscrito** (−2); los
+  monjes rotan sus frases canónicas en vez de repetir una.
+- **Robustez**: `cargar()` validado contra guardados dañados (aviso en el
+  menú); ruta de guardado absoluta; índice del menú seguro; `tipo()/zona()`
+  aceptan flotantes; mensajes largos se parten en líneas en vez de aplastarse.
+- **Legibilidad**: nombres de estancia en el mundo, HUD y minimapa; noche
+  legible; ticker de objetivo con la obligación horaria y la ubicación real
+  de cada objeto.
+- **Rendimiento**: suelo de cada planta pre-renderizado (−1 600 polígonos por
+  frame), minimapa cacheado en la planta, partículas independientes del
+  frame-rate; porcentaje de misión normalizado al 100 %.

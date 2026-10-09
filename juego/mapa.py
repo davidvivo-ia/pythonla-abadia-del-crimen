@@ -42,6 +42,9 @@ class Planta:
         self.anclas: dict[str, tuple[int, int]] = {}
         self.luces: list[tuple[int, int, tuple, int]] = []   # (gx,gy,color,radio)
         self.oscura = False
+        # Cachés de render por planta (suelo pre-renderizado, base del minimapa).
+        self.cache_suelo = None
+        self.cache_minimapa = None
 
     def add_luz(self, gx, gy, color=(255, 170, 70), radio=150) -> None:
         self.luces.append((gx, gy, color, radio))
@@ -84,10 +87,12 @@ class Planta:
         return 0 <= gx < self.ancho and 0 <= gy < self.alto
 
     def tipo(self, gx: int, gy: int) -> int:
-        return self.tiles[gy][gx] if self.dentro(int(gx), int(gy)) else C.VACIO
+        gx, gy = int(gx), int(gy)
+        return self.tiles[gy][gx] if self.dentro(gx, gy) else C.VACIO
 
     def zona(self, gx: int, gy: int) -> str:
-        return self.zonas[gy][gx] if self.dentro(int(gx), int(gy)) else "claustro"
+        gx, gy = int(gx), int(gy)
+        return self.zonas[gy][gx] if self.dentro(gx, gy) else "claustro"
 
     def transitable(self, gx: int, gy: int) -> bool:
         return self.tipo(int(gx), int(gy)) in C.TRANSITABLES
@@ -225,6 +230,7 @@ class Mapa:
         p.anclas["mesa_pergamino"] = (7, 7)
         p.anclas["mesa_libro"] = (9, 7)
         p.anclas["mesa_malaquias"] = (19, 12)
+        p.anclas["llave3"] = (5, 9)             # la llave del pasadizo (Adso la porta)
         p.add_luz(4, 4, (255, 170, 70), 140)
         p.add_luz(21, 4, (255, 170, 70), 140)
         p.add_luz(12, 15, (255, 160, 60), 130)

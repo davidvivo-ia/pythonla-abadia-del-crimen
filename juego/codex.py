@@ -23,40 +23,58 @@ class Codex:
 
     # ------------------------------------------------------------------ #
     def objetivo(self, juego) -> str:
-        """Texto del objetivo vigente según el horario y el progreso."""
+        """Texto del objetivo vigente según el horario, la posición y el progreso."""
         tiene = juego.tiene
         if juego.clima_resuelto:
             return "El misterio ha concluido."
 
-        # 1) Obligación horaria en curso: es lo que cuesta obsequium.
+        # 1) Obligación horaria: solo si Guillermo NO está ya donde debe.
         m = juego.reloj.momento
-        if m in C.MOMENTO_IGLESIA:
+        g = juego.guillermo
+        zona = juego.mapa.planta(C.PLANTA_BAJA).zona(*g.tile) if g.planta == C.PLANTA_BAJA else ""
+        if m in C.MOMENTO_IGLESIA and zona != "iglesia":
             return f"{juego.reloj.nombre}: acude a la iglesia antes de que acabe."
-        if m in C.MOMENTO_REFECTORIO:
+        if m in C.MOMENTO_REFECTORIO and zona != "refectorio":
             return "Sexta: ocupa tu sitio en el refectorio."
-        if m in C.MOMENTO_CELDA:
+        if m in C.MOMENTO_CELDA and zona != "celda":
             return f"{juego.reloj.nombre}: retírate a tu celda a dormir."
+        cumpliendo = (m in C.MOMENTO_IGLESIA or m in C.MOMENTO_REFECTORIO
+                      or m in C.MOMENTO_CELDA)
+        prefijo = "✓ Cumples el horario. Luego: " if cumpliendo else "Tiempo libre: "
 
-        # 2) Tiempo libre: progreso de la investigación.
+        # 2) Progreso de la investigación, con la ubicación REAL de cada objeto.
+        def donde(clave) -> str:
+            o = juego.objetos[clave]
+            if o.oculto:
+                return ""
+            p = juego.mapa.planta(o.planta)
+            est = p.estancia_de(o.gx, o.gy)
+            nombre = C.NOMBRE_ESTANCIA.get(est, "") if est else ""
+            nombre = nombre.split(" (")[0] or C.NOMBRE_PLANTA[o.planta]   # sin paréntesis anidados
+            return f" ({nombre.lower()})"
+
         faltan = []
         if not tiene("guantes"):
-            faltan.append("los guantes (enfermería)")
+            faltan.append("los guantes" + donde("guantes"))
         if not tiene("pergamino"):
-            faltan.append("el pergamino (scriptorium)")
+            faltan.append("el pergamino" + donde("pergamino"))
         if not tiene("gafas"):
             if juego.objetos["gafas"].oculto:
                 faltan.append("las gafas (reaparecen en la biblioteca el 5º día)")
             else:
-                faltan.append("las gafas")
+                faltan.append("las gafas" + donde("gafas"))
         if faltan:
             lista = ", ".join(faltan[:-1]) + (" y " if len(faltan) > 1 else "") + faltan[-1]
-            return "Tiempo libre: consigue " + lista + "."
-        if juego.objetos["lampara"].portador != "adso":
-            return "Haz que Adso recoja la lámpara (cocina) para entrar en la biblioteca."
+            return prefijo + "consigue " + lista + "."
+        lamp = juego.objetos["lampara"]
+        if lamp.portador != "adso":
+            if lamp.oculto:
+                return prefijo + "espera a la lámpara (aparece en la cocina el 3º día)."
+            return prefijo + "recoge la lámpara" + donde("lampara") + "; Adso la llevará."
         if juego.reloj.dia < 6:
-            return "Todo listo: Jorge aguardará tras el espejo desde el 6º día."
-        if juego.guillermo.planta != C.PLANTA_BIBLIOTECA:
-            return "Sube a la biblioteca y busca la sala del espejo."
+            return prefijo + "todo listo; Jorge aguardará tras el espejo desde el 6º día."
+        if g.planta != C.PLANTA_BIBLIOTECA:
+            return prefijo + "sube a la biblioteca y busca la sala del espejo."
         return "Enfréntate a Jorge en el espejo: ¡no te quites los guantes!"
 
     def to_dict(self):

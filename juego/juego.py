@@ -17,10 +17,11 @@ from .hud import HUD
 from .iso import foco_camara, mundo_a_pantalla, profundidad
 from .mapa import Mapa
 from .objetos import construir_objetos
+from .pathfinding import a_estrella
 from .personajes import DEF_MONJES, Adso, Guillermo, Monje
 from .tiempo import Reloj
 
-MENU, INTRO, JUGANDO, PAUSA, DIALOGO, GAMEOVER, VICTORIA, AYUDA, FINAL = range(9)
+MENU, INTRO, JUGANDO, PAUSA, DIALOGO, GAMEOVER, VICTORIA, AYUDA, FINAL, ENIGMA = range(10)
 
 TILE_MARGEN = 140
 COOLDOWN_ESCALERA = 0.5
@@ -34,10 +35,10 @@ class Juego:
         self.hud = HUD()
         self.audio = Audio()
         self.fx = PostFX(C.ANCHO, C.ALTO)
-        self.particulas = Particulas()
         self.rng = random.Random(1327)
         self.estado = MENU
         self.opcion_menu = 0
+        self.aviso_menu = ""
         self.ejecutando = True
         self.fx_on = True
         self.mostrar_codex = False
@@ -64,9 +65,9 @@ class Juego:
         self.obsequium = C.OBSEQUIUM_MAX
         self.objetos = construir_objetos(self.mapa)
         self.monjes = {}
-        for clave, nombre, color, planta, home, frase_base in DEF_MONJES:
+        for clave, nombre, color, planta, home, frases_monje in DEF_MONJES:
             px, py = self.mapa.planta(planta).ancla(home)
-            m = Monje(px, py, planta, color, nombre, home, frase_base)
+            m = Monje(px, py, planta, color, nombre, home, frases_monje)
             if clave in ("jorge", "bernardo"):
                 m.activo = False
             self.monjes[clave] = m
@@ -86,6 +87,9 @@ class Juego:
         self.shake = 0.0
         self.mostrar_codex = False
         self._estancia_prev = None
+        self.cola_dialogo: list[str] = []
+        self.tras_dialogo = None
+        self.cd_bernardo = 0.0
 
     def mensaje(self, txt, dur=4.0) -> None:
         self.mensajes.append([txt, dur])
@@ -126,8 +130,22 @@ class Juego:
             self._tecla_menu(key)
         elif self.estado == INTRO:
             self.estado = JUGANDO
-            self.mensaje(f"El Abad: «{frases.frase(0x01)}»", 6)
-            self.mensaje(f"El Abad: «{frases.frase(0x02)}»", 7)
+            # Eventos del día 1 (la partida empieza en Nona, así que no los
+            # dispara el cambio de momento): bienvenida, encargo, normas y el
+            # primer crimen.
+            for quien, idx, dur in (("El Abad", 0x01, 6), ("El Abad", 0x02, 8),
+                                    ("El Abad", 0x03, 7), ("El Abad", 0x15, 6)):
+                self.mensaje(f"{quien}: «{frases.frase(idx)}»", dur)
+                self.pista(f"{quien}: {frases.frase(idx)}")
+        elif self.estado == ENIGMA:
+            if key == pygame.K_ESCAPE:
+                self.estado = JUGANDO
+            elif key in (pygame.K_1, pygame.K_KP1):
+                self._resolver_enigma(0)
+            elif key in (pygame.K_2, pygame.K_KP2):
+                self._resolver_enigma(1)
+            elif key in (pygame.K_3, pygame.K_KP3):
+                self._resolver_enigma(2)
         elif self.estado == JUGANDO:
             if self.mostrar_codex and key not in (pygame.K_j, pygame.K_ESCAPE):
                 return
@@ -152,14 +170,27 @@ class Juego:
             elif key == pygame.K_F5:
                 self.guardar()
         elif self.estado == DIALOGO:
-            self.estado = JUGANDO
+            if self.cola_dialogo:                       # siguiente línea de la escena
+                self.dialogo_texto = self.cola_dialogo.pop(0)
+            else:
+                self.estado = self.tras_dialogo if self.tras_dialogo is not None else JUGANDO
+                self.tras_dialogo = None
         elif self.estado == VICTORIA:
             self.estado = FINAL
         elif self.estado in (GAMEOVER, AYUDA, FINAL):
             self.estado = MENU
 
+    def _dialogos(self, textos, luego=None) -> None:
+        """Encadena una escena de diálogos (una línea por pulsación) y, al
+        terminar, pasa al estado `luego` (o vuelve al juego)."""
+        self.dialogo_texto = textos[0]
+        self.cola_dialogo = list(textos[1:])
+        self.tras_dialogo = luego
+        self.estado = DIALOGO
+
     def _tecla_menu(self, key) -> None:
         ops = self._opciones_menu()
+        self.opcion_menu %= len(ops)                   # la lista puede encoger
         if key in (pygame.K_UP, pygame.K_w):
             self.opcion_menu = (self.opcion_menu - 1) % len(ops)
         elif key in (pygame.K_DOWN, pygame.K_s):
@@ -176,10 +207,12 @@ class Juego:
 
     def _elegir_menu(self, op) -> None:
         if op == "Nueva partida":
+            self.aviso_menu = ""
             self._nuevo_mundo()
             self.estado = INTRO
         elif op == "Continuar":
             if self.cargar():
+                self.aviso_menu = ""
                 self.estado = JUGANDO
         elif op == "Cómo se juega":
             self.estado = AYUDA
@@ -212,6 +245,7 @@ class Juego:
         self._oscuridad_biblioteca(dt)
         self.particulas.actualizar(dt, self)
         self._aviso_estancia()
+        self._bernardo(dt)
 
         prev_m = self.reloj.momento
         if self.reloj.actualizar(dt):
@@ -225,6 +259,24 @@ class Juego:
 
         if self.reloj.fin_del_juego and not self.clima_resuelto:
             self._fin(f"El Abad: «{frases.frase(0x25)}» Se acaba el séptimo día.")
+
+    def _bernardo(self, dt) -> None:
+        """Bernardo Gui persigue a Guillermo mientras lleve el manuscrito y se
+        lo arrebata para entregárselo al Abad (−2 obsequium)."""
+        b, g = self.monjes["bernardo"], self.guillermo
+        if not (b.activo and b.vivo and b.planta == g.planta and self.tiene("pergamino")):
+            return
+        self.cd_bernardo -= dt
+        if self.cd_bernardo <= 0:                       # replanifica hacia Guillermo
+            self.cd_bernardo = 0.8
+            b.ruta = a_estrella(self.mapa.planta(b.planta), b.tile, g.tile)
+        if math.hypot(g.x - b.x, g.y - b.y) < 1.5:
+            ca = self.mapa.planta(C.PLANTA_BAJA).anclas["celda_abad"]
+            self.objetos["pergamino"].colocar(C.PLANTA_BAJA, *ca)
+            self.mensaje(f"Bernardo Gui: «{frases.frase(0x05)}» Te arrebata el manuscrito "
+                         "y se lo lleva al Abad.", 7)
+            self.pista("Bernardo Gui me quitó el manuscrito de Venancio: está en la celda del Abad.")
+            self._decrementa_obsequium(0x05, "Bernardo Gui")
 
     def _aviso_estancia(self) -> None:
         """Aviso breve al entrar en una estancia distinta."""
@@ -290,7 +342,8 @@ class Juego:
             con_luz = True
         if con_luz:
             self.cnt_oscuras = 0.0
-            if self.objetos["lampara"].portador == "adso" and self.aceite > 0:
+            # El aceite solo se gasta cuando la luz proviene de la lámpara.
+            if zona != "espejo" and self.objetos["lampara"].portador == "adso" and self.aceite > 0:
                 antes = self.aceite
                 self.aceite = max(0.0, self.aceite - dt * 2.0)
                 if antes > 40 >= self.aceite:
@@ -321,9 +374,9 @@ class Juego:
         if falta is not None:
             self._decrementa_obsequium(falta)
 
-    def _decrementa_obsequium(self, idx_frase) -> None:
+    def _decrementa_obsequium(self, idx_frase, quien="El Abad") -> None:
         self.obsequium -= C.OBSEQUIUM_PENALIZACION
-        self.mensaje(f"El Abad: «{frases.frase(idx_frase)}»  (−2 obsequium)", 5)
+        self.mensaje(f"{quien}: «{frases.frase(idx_frase)}»  (−2 obsequium)", 5)
         self.sacudir(5.0)
         if self.obsequium < 0:
             self.obsequium = 0
@@ -356,6 +409,12 @@ class Juego:
             self.cam_x, self.cam_y = foco_camara(g.x, g.y)
             self.cd_escalera = COOLDOWN_ESCALERA
             self.mensaje(f"Entras en: {C.NOMBRE_PLANTA[planta]}.", 3)
+            if planta == C.PLANTA_BIBLIOTECA and self.objetos["lampara"].portador != "adso":
+                lamp = self.objetos["lampara"]
+                cuando = ("aparecerá en la cocina el 3º día" if lamp.oculto
+                          else "está en la cocina; Adso la llevará")
+                self.mensaje(f"Adso: «{frases.frase(0x13)}» Sin luz morirás en el laberinto "
+                             f"en pocos segundos: vuelve por la escalera. La lámpara {cuando}.", 8)
             return
         # 2) Espejo (clímax)
         if g.planta == C.PLANTA_BIBLIOTECA:
@@ -371,29 +430,44 @@ class Juego:
                 if d < mejor:
                     mejor, cerca = d, m
         if cerca:
-            self.dialogo_texto = f"{cerca.nombre}: «{cerca.frase_base}»"
-            self.pista(f"{cerca.nombre}: {cerca.frase_base}")
-            self.estado = DIALOGO
+            linea = cerca.frase()
+            self.pista(f"{cerca.nombre}: {linea}")
+            self._dialogos([f"{cerca.nombre}: «{linea}»"])
 
     def _espejo(self) -> None:
         self.bonus.add("sala_espejo")
         if not (self.tiene("pergamino") and self.tiene("gafas")):
-            self.mensaje(f"El espejo no cede. Necesitas el pergamino y las gafas. «{self._enigma_pista()}»", 6)
+            self.mensaje("El espejo no cede. Para leer el enigma necesitas el pergamino "
+                         "de Venancio y las gafas.", 6)
             return
         if not self.monjes["jorge"].activo or self.reloj.dia < 6:
             self.mensaje("Tras el espejo no hay nadie aún. (Jorge aparece el 6º día).", 5)
             return
-        self.bonus.add("espejo_abierto")
-        # Clímax
+        self.estado = ENIGMA                            # hay que teclear el número romano
+
+    def _resolver_enigma(self, idx) -> None:
+        """Respuesta al enigma del espejo. Acertar abre el pasadizo; fallar es
+        la trampa mortal del original."""
+        J, A = "Jorge", "Adso"
+        if idx != self.romano:
+            self.clima_resuelto = True
+            self.mensaje_final = (f"«{frases.frase(0x22)}» El número romano no era ese: "
+                                  "el espejo era una trampa.")
+            self.sacudir(12.0)
+            self._dialogos(["Un mecanismo cruje tras el espejo... el suelo cede bajo tus pies."],
+                           luego=GAMEOVER)
+            return
+        self.bonus.update({"espejo_abierto", "gafas_pergamino"})
+        self.clima_resuelto = True
         if self.tiene("guantes"):
-            self.mensaje(f"Jorge: «{frases.frase(0x21)}»", 6)
-            self.mensaje(f"Jorge: «{frases.frase(0x2E)}»", 8)
-            self.mensaje(f"Adso: «{frases.frase(0x23)}»", 9)
-            self.mensaje(f"Jorge: «{frases.frase(0x2F)}»", 6)
-            self._victoria()
+            self._dialogos([f"{J}: «{frases.frase(0x21)}»", f"{J}: «{frases.frase(0x2E)}»",
+                            f"{A}: «{frases.frase(0x23)}»", f"{J}: «{frases.frase(0x2F)}»",
+                            f"{A}: «{frases.frase(0x24)}»"], luego=VICTORIA)
         else:
-            self.mensaje(f"Jorge: «{frases.frase(0x21)}»", 6)
-            self._fin(f"«{frases.frase(0x22)}»  (te faltaban los guantes)")
+            self.mensaje_final = f"«{frases.frase(0x22)}»  (te faltaban los guantes)"
+            self.sacudir(12.0)
+            self._dialogos([f"{J}: «{frases.frase(0x21)}»", f"{J}: «{frases.frase(0x2E)}»"],
+                           luego=GAMEOVER)
 
     # ------------------------------------------------------------------ #
     def tiene(self, clave) -> bool:
@@ -401,14 +475,6 @@ class Juego:
 
     def _enigma(self) -> str:
         return frases.frase(0x00, ROMANO=C.NUMEROS_ROMANOS[self.romano])
-
-    def _enigma_pista(self) -> str:
-        return frases.frase(0x33)
-
-    def _victoria(self) -> None:
-        self.clima_resuelto = True
-        self.bonus.update({"gafas_pergamino"})
-        self.estado = VICTORIA
 
     def _fin(self, texto) -> None:
         if self.clima_resuelto:
@@ -419,9 +485,12 @@ class Juego:
         self.estado = GAMEOVER
 
     def _porcentaje(self) -> int:
+        """Fórmula del original, normalizada sobre el máximo alcanzable."""
         a = 7 * (self.reloj.dia - 1) + self.reloj.momento + 4 * len(self.bonus)
-        a = 0 if a < 5 else a
-        return min(100, a)
+        if a < 5:
+            return 0
+        maximo = 7 * 6 + 6 + 4 * len(C.BONUS_TOTAL)
+        return min(100, round(100 * a / maximo))
 
     # ================================================================== #
     #  RENDER
@@ -430,7 +499,7 @@ class Juego:
         if self.estado != self._estado_prev:
             # Crossfade sólo en cambios "de pantalla"; abrir o cerrar un overlay
             # (pausa, diálogo) sobre el juego no funde a negro.
-            en_juego = {JUGANDO, PAUSA, DIALOGO}
+            en_juego = {JUGANDO, PAUSA, DIALOGO, ENIGMA}
             if not (self.estado in en_juego and self._estado_prev in en_juego):
                 self.fade = 1.0
             self._estado_prev = self.estado
@@ -449,13 +518,15 @@ class Juego:
             self._filmico_ligero()
         else:
             self._render_mundo()                 # escribe en self.pantalla ya post-procesado
-            if self.estado in (JUGANDO, PAUSA, DIALOGO):
+            if self.estado in (JUGANDO, PAUSA, DIALOGO, ENIGMA):
                 self.hud.dibujar(self.pantalla, self)
                 self._ticker_objetivo()
             if self.estado == PAUSA:
                 self._overlay_pausa()
             elif self.estado == DIALOGO:
                 self._overlay_dialogo()
+            elif self.estado == ENIGMA:
+                self._overlay_enigma()
             elif self.estado == GAMEOVER:
                 self._overlay_final("FIN", self.mensaje_final, C.ROJO)
             elif self.estado == VICTORIA:
@@ -534,6 +605,23 @@ class Juego:
         self.hud.texto(self.pantalla, "[J] Cerrar", x + w // 2, y + h - 24,
                        self.hud.f_pequena, (150, 150, 160), centro=True)
 
+    def _overlay_enigma(self) -> None:
+        self._velo(150)
+        w, h = 900, 300
+        x, y = (C.ANCHO - w) // 2, (C.ALTO - h) // 2 - 40
+        self._glass((x, y, w, h), alpha=220, borde=(190, 170, 230))
+        self.hud.texto(self.pantalla, "EL ENIGMA DEL ESPEJO", x + w // 2, y + 34,
+                       self.hud.f_grande, (210, 190, 250), centro=True)
+        enigma = frases.frase(0x00, ROMANO="???")
+        self._texto_multilinea(enigma, x + w // 2, y + 80, 70, centro=True)
+        self.hud.texto(self.pantalla, "¿Qué número romano dictaba el pergamino? (lo anotaste en el códice)",
+                       x + w // 2, y + 160, self.hud.f_media, C.PERGAMINO_2, centro=True)
+        opciones = "   ".join(f"[{i + 1}] {r}" for i, r in enumerate(C.NUMEROS_ROMANOS))
+        self.hud.texto(self.pantalla, opciones, x + w // 2, y + 205, self.hud.f_grande,
+                       C.ORO_CLARO, centro=True)
+        self.hud.texto(self.pantalla, "Fallar es caer en la trampa.   [ESC] retroceder",
+                       x + w // 2, y + 255, self.hud.f_pequena, (190, 150, 150), centro=True)
+
     def _render_mundo(self) -> None:
         planta = self.planta_actual
         real = self.pantalla
@@ -546,20 +634,19 @@ class Juego:
             cx, cy = C.ANCHO // 2 + int(ox), C.ALTO // 2 - 40 + int(oy)
             objetos_dibujo = []
 
+            # Suelo: pre-renderizado una vez por planta y blitado por recorte.
+            self._blit_suelo(planta, cx, cy)
             for gy in range(planta.alto):
                 for gx in range(planta.ancho):
                     t = planta.tiles[gy][gx]
-                    if t == C.VACIO:
+                    if t not in (C.MURO, C.ALTAR, C.CAMA, C.ESPEJO, C.MESA):
                         continue
                     sx, sy = mundo_a_pantalla(gx, gy, self.cam_x, self.cam_y, cx, cy)
                     if not (-TILE_MARGEN < sx < C.ANCHO + TILE_MARGEN and
                             -TILE_MARGEN < sy < C.ALTO + TILE_MARGEN):
                         continue
-                    if t in (C.SUELO, C.PUERTA, C.ALTAR, C.CAMA, C.ESCALERA, C.ESPEJO, C.MESA):
-                        self._suelo(planta, gx, gy, cx, cy, t)
-                    if t in (C.MURO, C.ALTAR, C.CAMA, C.ESPEJO, C.MESA):
-                        objetos_dibujo.append((profundidad(gx, gy),
-                                               lambda gx=gx, gy=gy, t=t: self._bloque(planta, gx, gy, cx, cy, t)))
+                    objetos_dibujo.append((profundidad(gx, gy),
+                                           lambda gx=gx, gy=gy, t=t: self._bloque(planta, gx, gy, cx, cy, t)))
 
             for obj in self.objetos.values():
                 if obj.en_suelo and obj.planta == self.guillermo.planta:
@@ -616,6 +703,33 @@ class Juego:
             if -60 < sx < C.ANCHO + 60 and 100 < sy < C.ALTO - 90:
                 self.hud.texto(self.pantalla, "▲ Escalera [E]", sx, sy - 22,
                                self.hud.f_pequena, (150, 230, 150), centro=True)
+
+    def _suelo_cache(self, planta):
+        """Suelo completo de la planta en una superficie (se construye una vez)."""
+        if planta.cache_suelo is None:
+            ox = planta.alto * C.TILE_W // 2 + 2
+            w = (planta.ancho + planta.alto) * C.TILE_W // 2 + 4
+            h = (planta.ancho + planta.alto) * C.TILE_H // 2 + 4
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            real, cam = self.pantalla, (self.cam_x, self.cam_y)
+            self.pantalla, self.cam_x, self.cam_y = surf, 0.0, 0.0
+            try:
+                for gy in range(planta.alto):
+                    for gx in range(planta.ancho):
+                        t = planta.tiles[gy][gx]
+                        if t in (C.SUELO, C.PUERTA, C.ALTAR, C.CAMA, C.ESCALERA, C.ESPEJO, C.MESA):
+                            self._suelo(planta, gx, gy, ox, 2, t)
+            finally:
+                self.pantalla, (self.cam_x, self.cam_y) = real, cam
+            planta.cache_suelo = (surf, ox, 2)
+        return planta.cache_suelo
+
+    def _blit_suelo(self, planta, cx, cy) -> None:
+        surf, ox, oy = self._suelo_cache(planta)
+        dx, dy = int(cx - self.cam_x - ox), int(cy - self.cam_y - oy)
+        area = pygame.Rect(-dx, -dy, C.ANCHO, C.ALTO).clip(surf.get_rect())
+        if area.width > 0 and area.height > 0:
+            self.pantalla.blit(surf, (area.x + dx, area.y + dy), area)
 
     def _rombo(self, gx, gy, cx, cy, dz=0):
         n = mundo_a_pantalla(gx, gy, self.cam_x, self.cam_y, cx, cy)
@@ -808,6 +922,9 @@ class Juego:
             self.hud.texto(self.pantalla, ("» " if sel else "  ") + op, C.ANCHO // 2,
                            330 + i * 44, self.hud.f_grande,
                            C.ORO_CLARO if sel else C.PERGAMINO, centro=True)
+        if self.aviso_menu:
+            self.hud.texto(self.pantalla, self.aviso_menu, C.ANCHO // 2, C.ALTO - 80,
+                           self.hud.f_media, C.ROJO, centro=True)
         self.hud.texto(self.pantalla,
                        "Inspirado en la obra de Paco Menéndez y «El nombre de la rosa»",
                        C.ANCHO // 2, C.ALTO - 36, self.hud.f_pequena, C.PERGAMINO_2, centro=True)
@@ -842,10 +959,11 @@ class Juego:
             "Noche). Cada falta resta 2. Si baja de 0, el Abad te expulsa.",
             "",
             "OBJETIVO: reúne guantes, gafas y el pergamino; sube por las",
-            "escaleras al scriptorium y a la biblioteca (necesitas la lámpara",
-            "de Adso en la oscuridad); resuelve el enigma del espejo y llega",
-            "ante Jorge el 6º/7º día. Con los GUANTES sobrevivirás al libro",
-            "envenenado y resolverás el misterio.",
+            "escaleras al scriptorium y a la biblioteca (necesitas la lámpara,",
+            "que aparece en la cocina el 3º día y porta Adso). Ante el espejo,",
+            "teclea el número romano que te reveló el pergamino (consúltalo en",
+            "el códice): fallar es la trampa. Con los GUANTES sobrevivirás al",
+            "libro envenenado de Jorge y resolverás el misterio.",
         ]
         y = 120
         for ln in lineas:
@@ -878,29 +996,55 @@ class Juego:
             self.mensaje(f"No se pudo guardar: {e}", 4)
 
     def cargar(self) -> bool:
+        """Carga validando el archivo: un guardado dañado, antiguo o manipulado
+        devuelve False (con aviso en el menú) en lugar de reventar el juego."""
         try:
             with open(C.ARCHIVO_GUARDADO, encoding="utf-8") as f:
                 d = json.load(f)
-        except (OSError, json.JSONDecodeError):
+            dia, momento, t = int(d["dia"]), int(d["momento"]), float(d["t"])
+            obsequium = int(d["obsequium"])
+            gx, gy, gp = d["guillermo"]
+            ax, ay, ap = d["adso"]
+            objetos = {k: tuple(v) for k, v in d["objetos"].items()}
+            monjes = {k: tuple(v) for k, v in d["monjes"].items()}
+            plantas = (C.PLANTA_BAJA, C.PLANTA_SCRIPTORIUM, C.PLANTA_BIBLIOTECA)
+            if not (1 <= dia <= C.DIAS_TOTALES and 0 <= momento <= C.COMPLETAS
+                    and 0 <= obsequium <= C.OBSEQUIUM_MAX and gp in plantas and ap in plantas):
+                raise ValueError("rango")
+            for portador, oculto, planta, ox, oy in objetos.values():
+                if planta not in plantas or portador not in (None, "guillermo", "adso"):
+                    raise ValueError("objeto")
+                int(ox), int(oy), bool(oculto)
+            for x, y, planta, vivo, activo in monjes.values():
+                if planta not in plantas:
+                    raise ValueError("monje")
+                float(x), float(y)
+            romano = int(d.get("romano", 0)) % len(C.NUMEROS_ROMANOS)
+            aceite = max(0.0, min(100.0, float(d.get("aceite", 100.0))))
+            bonus = {b for b in d.get("bonus", []) if b in C.BONUS_TOTAL}
+            codex = d.get("codex", {})
+        except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError, IndexError):
+            self.aviso_menu = "No se pudo cargar la partida: archivo dañado o incompatible."
             return False
+
         self._nuevo_mundo()
-        self.reloj.dia, self.reloj.momento, self.reloj.t = d["dia"], d["momento"], d["t"]
-        self.obsequium = d["obsequium"]
-        self.romano = d.get("romano", 0)
-        self.aceite = d.get("aceite", 100.0)
-        self.guillermo.x, self.guillermo.y, self.guillermo.planta = d["guillermo"]
-        self.adso.x, self.adso.y, self.adso.planta = d["adso"]
-        self.bonus = set(d.get("bonus", []))
-        for k, (portador, oculto, planta, gx, gy) in d["objetos"].items():
+        self.reloj.dia, self.reloj.momento, self.reloj.t = dia, momento, t
+        self.obsequium, self.romano, self.aceite, self.bonus = obsequium, romano, aceite, bonus
+        self.guillermo.x, self.guillermo.y, self.guillermo.planta = float(gx), float(gy), gp
+        self.adso.x, self.adso.y, self.adso.planta = float(ax), float(ay), ap
+        if not self.mapa.planta(gp).transitable(int(gx), int(gy)):   # posición corrupta
+            self.guillermo.x, self.guillermo.y = self.mapa.planta(gp).ancla(
+                "iglesia" if gp == C.PLANTA_BAJA else ("scriptorium" if gp == 1 else "biblioteca"))
+            self.adso.x, self.adso.y = self.guillermo.x, self.guillermo.y
+        for k, (portador, oculto, planta, ox, oy) in objetos.items():
             if k in self.objetos:
                 o = self.objetos[k]
-                o.portador, o.oculto, o.planta, o.gx, o.gy = portador, oculto, planta, gx, gy
-        for k, (x, y, planta, vivo, activo) in d["monjes"].items():
+                o.portador, o.oculto, o.planta, o.gx, o.gy = portador, bool(oculto), planta, int(ox), int(oy)
+        for k, (x, y, planta, vivo, activo) in monjes.items():
             if k in self.monjes:
                 m = self.monjes[k]
-                m.x, m.y, m.planta, m.vivo, m.activo = x, y, planta, vivo, activo
-        if "codex" in d:
-            self.codex.from_dict(d["codex"])
+                m.x, m.y, m.planta, m.vivo, m.activo = float(x), float(y), planta, bool(vivo), bool(activo)
+        self.codex.from_dict(codex if isinstance(codex, dict) else {})
         self.cam_x, self.cam_y = foco_camara(self.guillermo.x, self.guillermo.y)
         self.mensaje("Partida cargada.", 3)
         return True

@@ -6,6 +6,8 @@ Java de ibaca y JS de ultrabolido). Ver COMPARATIVA_Y_MEJORAS.md.
 """
 from __future__ import annotations
 
+import os
+
 # --------------------------------------------------------------------------- #
 # Ventana / motor
 # --------------------------------------------------------------------------- #
@@ -142,4 +144,10 @@ OBSEQUIUM_PENALIZACION = 2
 # Enigma del espejo
 NUMEROS_ROMANOS = ["IXX", "XIX", "XXI"]
 
-ARCHIVO_GUARDADO = "partida_abadia.json"
+ARCHIVO_GUARDADO = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                "partida_abadia.json")
+
+# Hitos que suman puntuación (4 % cada uno); el porcentaje se normaliza sobre
+# el máximo real para que una partida perfecta llegue al 100 %.
+BONUS_TOTAL = ("guantes", "llave1", "llave2", "llave3", "biblioteca",
+               "sala_espejo", "espejo_abierto", "gafas_pergamino")

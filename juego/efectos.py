@@ -83,13 +83,10 @@ class PostFX:
         grande = pygame.transform.smoothscale(peq, (self.ancho, self.alto))
         return grande
 
-    def aplicar(self, origen, destino, dt=0.016, intensidad_bloom=1.0) -> None:
+    def aplicar(self, origen, destino, dt=0.016) -> None:
         self.t += dt
         destino.blit(origen, (0, 0))
-        bloom = self._bloom(origen)
-        if intensidad_bloom < 1.0:
-            bloom.set_alpha(int(255 * intensidad_bloom))
-        destino.blit(bloom, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+        destino.blit(self._bloom(origen), (0, 0), special_flags=pygame.BLEND_RGB_ADD)
         self.velo_filmico(destino)
 
     def velo_filmico(self, sup) -> None:
@@ -169,19 +166,20 @@ class Particulas:
             self.emitir(g.x, g.y, "pisada", 1)
 
         vivos = []
+        k = dt * 60.0                      # todo escalado al frame-rate
         for p in self.items:
             p.vida -= dt * 6
             if p.vida <= 0:
                 continue
             p.x += p.vx * dt
             p.y += p.vy * dt
-            p.z += p.vz
+            p.z += p.vz * k
             if p.tipo == "llama":
-                p.vz *= 0.94
-                p.vx *= 0.9
-                p.vy *= 0.9
+                p.vz *= 0.94 ** k
+                p.vx *= 0.9 ** k
+                p.vy *= 0.9 ** k
             elif p.tipo == "polvo":
-                p.z += math.sin((self._t + p.vida) * 2) * 0.15
+                p.z += math.sin((self._t + p.vida) * 2) * 0.15 * k
             vivos.append(p)
         self.items = vivos[-900:]      # tope de seguridad
 

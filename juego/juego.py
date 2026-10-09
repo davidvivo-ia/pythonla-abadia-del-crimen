@@ -13,6 +13,7 @@ from . import frases, guion
 from .audio import Audio
 from .codex import Codex
 from .efectos import Particulas, PostFX
+from .guia import Guia
 from .hud import HUD
 from .iso import foco_camara, mundo_a_pantalla, profundidad
 from .mapa import Mapa
@@ -90,6 +91,7 @@ class Juego:
         self.cola_dialogo: list[str] = []
         self.tras_dialogo = None
         self.cd_bernardo = 0.0
+        self.guia = Guia()
 
     def mensaje(self, txt, dur=4.0) -> None:
         self.mensajes.append([txt, dur])
@@ -246,6 +248,7 @@ class Juego:
         self.particulas.actualizar(dt, self)
         self._aviso_estancia()
         self._bernardo(dt)
+        self.guia.actualizar(self, dt)
 
         prev_m = self.reloj.momento
         if self.reloj.actualizar(dt):
@@ -572,13 +575,18 @@ class Juego:
         pygame.draw.rect(self.pantalla, borde, (x, y, w, h), 1, border_radius=6)
 
     def _ticker_objetivo(self) -> None:
+        """Panel de orientación: dónde estás, a dónde ir y por qué."""
+        donde = f"Estás en: {self.estancia_actual_nombre()}  ·  {C.NOMBRE_PLANTA[self.guillermo.planta]}"
+        ir = self.guia.texto(self)
         obj = self.codex.objetivo(self)
-        # El panel se ensancha con el texto para que nunca desborde.
-        w = max(430, min(C.ANCHO - 340, self.hud.f_media.size(obj)[0] + 44))
-        self._glass((16, 16, w, 62), alpha=140, borde=(90, 170, 220))
-        self.hud.texto(self.pantalla, "◈ OBJETIVO", 30, 24, self.hud.f_pequena, (140, 200, 240))
-        self.hud.texto(self.pantalla, obj, 30, 42, self.hud.f_media, C.PERGAMINO)
-        self.hud.texto(self.pantalla, "[J] Códice   [F] Efectos", 30, 66,
+        f = self.hud.f_media
+        w = max(470, min(C.ANCHO - 330, max(f.size(donde)[0], f.size(ir)[0], f.size(obj)[0]) + 44))
+        self._glass((16, 16, w, 100), alpha=150, borde=(90, 170, 220))
+        self.hud.texto(self.pantalla, donde, 30, 24, f, C.ORO_CLARO)
+        color_ir = (120, 220, 255) if self.guia.tile is not None else (150, 210, 160)
+        self.hud.texto(self.pantalla, ir, 30, 48, f, color_ir)
+        self.hud.texto(self.pantalla, obj, 30, 72, self.hud.f_pequena, C.PERGAMINO_2)
+        self.hud.texto(self.pantalla, "[J] Códice  [F] Efectos", w - 140, 96,
                        self.hud.f_pequena, (150, 150, 160))
 
     def _overlay_codex(self) -> None:
@@ -672,8 +680,9 @@ class Juego:
             self.fx.aplicar(self.lienzo, real, self._dt)
         else:
             real.blit(self.lienzo, (0, 0))
-        # Etiquetas de las estancias: nítidas, sobre el post-procesado.
+        # Etiquetas de las estancias y guía de navegación: nítidas, sobre el post-procesado.
         self._etiquetas_estancias(planta, cx, cy)
+        self.guia.dibujar_mundo(self, self.pantalla, cx, cy)
 
     def _etiquetas_estancias(self, planta, cx, cy) -> None:
         """Nombre de cada estancia visible, flotando sobre su centro."""
@@ -682,7 +691,7 @@ class Juego:
             nombre = C.NOMBRE_ESTANCIA.get(clave, clave)
             gx, gy = e.centro
             sx, sy = mundo_a_pantalla(gx + 0.5, gy + 0.5, self.cam_x, self.cam_y, cx, cy)
-            if not (-120 < sx < C.ANCHO + 120 and 100 < sy < C.ALTO - 100):
+            if not (-120 < sx < C.ANCHO + 120 and 130 < sy < C.ALTO - 100):
                 continue
             es_actual = clave == actual
             fuente = self.hud.f_media if es_actual else self.hud.f_pequena
@@ -700,7 +709,7 @@ class Juego:
             if pl != self.guillermo.planta:
                 continue
             sx, sy = mundo_a_pantalla(gx + 0.5, gy + 0.5, self.cam_x, self.cam_y, cx, cy)
-            if -60 < sx < C.ANCHO + 60 and 100 < sy < C.ALTO - 90:
+            if -60 < sx < C.ANCHO + 60 and 130 < sy < C.ALTO - 90:
                 self.hud.texto(self.pantalla, "▲ Escalera [E]", sx, sy - 22,
                                self.hud.f_pequena, (150, 230, 150), centro=True)
 

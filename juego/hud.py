@@ -129,12 +129,13 @@ class HUD:
         for m in juego.monjes.values():
             if m.vivo and m.activo and m.planta == juego.guillermo.planta:
                 sup.fill(C.ROJO, (mx + int(m.x) * escala, my + int(m.y) * escala, escala, escala))
+        juego.guia.dibujar_minimapa(juego, sup, mx, my, escala)
         g = juego.guillermo
         sup.fill(C.BLANCO, (mx + int(g.x) * escala - 1, my + int(g.y) * escala - 1, 4, 4))
 
     def _mensajes(self, sup, juego) -> None:
         """Mensajes flotantes; los largos se parten en líneas (nunca se escalan)."""
-        y = 118
+        y = 136
         max_w = C.ANCHO - 340
         for msg, t in juego.mensajes:
             alpha = min(255, int(t * 140))

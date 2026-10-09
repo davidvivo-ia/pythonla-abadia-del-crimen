@@ -16,8 +16,11 @@ objetos** con función, mecánica de **obsequium**, las **7 horas canónicas**, 
 y grano fílmico), **iluminación dinámica** con antorchas cálidas parpadeantes y
 lámpara de aceite, **sistema de partículas** (polvo en suspensión, llamas,
 chispas), **sacudida de cámara**, **transiciones** con fundido, HUD
-**glassmorphism** con ticker de objetivo y un **códice de detective** que
-registra las pistas (tecla `J`).
+**glassmorphism** con ticker de objetivo, un **códice de detective** que
+registra las pistas (tecla `J`) y una **guía de navegación**: el juego te dice
+en qué sala estás y a dónde ir (iglesia, refectorio, tu celda, el siguiente
+objeto o la escalera) con un rastro de puntos en el suelo, una flecha junto a
+Guillermo y el destino marcado en el minimapa.
 
 ![La abadía con iluminación dinámica](assets/nextgen_baja.png)
 
